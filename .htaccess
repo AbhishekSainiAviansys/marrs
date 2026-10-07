@@ -1,5 +1,6 @@
- RewriteEngine On
- RewriteCond %{HTTPS} !=on
- RewriteRule ^.*$ http://%{SERVER_NAME}%{REQUEST_URI} [R,L]
- RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)(:[0-9]+)?$
+RewriteRule ^.*$ http://%{SERVER_NAME}%{REQUEST_URI} [R,L]
+RewriteCond %{REQUEST_FILENAME}.php -f
 RewriteRule !.*\.php$ %{REQUEST_FILENAME}.php [QSA,L]

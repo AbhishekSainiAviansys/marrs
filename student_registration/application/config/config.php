@@ -23,7 +23,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 | a PHP script and you can easily do that on your own.
 |
 */
-$config['base_url'] = 'https://marrs.in/student_registration';
+$config['base_url'] = (getenv('APP_BASE_URL') !== FALSE) ? rtrim(getenv('APP_BASE_URL'), '/') . '/student_registration' : 'https://marrs.in/student_registration';
 
 /*
 |--------------------------------------------------------------------------
