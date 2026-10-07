@@ -1,0 +1,79 @@
+<?php include('header.php');
+//include('student_nav.php');
+//$pri=$this->session->userdata('cart');
+$payid=$session['razorpay_order_id'];
+$tid=$session['razorpay_order_id'];
+
+?>
+
+
+
+<section>
+    <div class="container">
+        <div class="row" id="certificateWrapper">
+            <div class="col-sm-12 col-md-12 col-lg-12 mx-auto">
+            <div class="card text-center my-5" id="content" >
+            <div class="card-body">
+                <i class="fa-solid fa-circle-xmark text-danger mb-3" style="font-size:70px;"></i>
+                <h5 class="card-title mb-3">Transaction Failed</h5>
+                <table class="table table-borderless mx-auto w-50 mb-5 text-start">
+                <thead>
+                    <tr>
+                    <th scope="col">Payment</th>
+                    <th scope="col">Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                    <td>PRID</td>
+                    <td><?php echo $session['prid'];?></td>
+                    </tr>
+                    <tr>
+                    <td>Payment ID</td>
+                    <td><?php echo $payid; ?></td>
+                    </tr>
+                    <tr>
+                    <td>Transaction ID</td>
+                    <td><?php echo $tid; ?></td>
+                    </tr>
+                </tbody>
+                </table>
+                <a href="<?php echo base_url();?>zoomzoom/products" class="btn btn-outline-danger">GO BACK </a>
+            </div>
+            </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+
+<?php include("footer.php");?>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

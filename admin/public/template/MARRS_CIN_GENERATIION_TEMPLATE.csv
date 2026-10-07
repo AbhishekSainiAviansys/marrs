@@ -1,0 +1,2 @@
+class_id,student_name,gender,father_name,mother_name,address_1,address_2,pin_code,email,mobile
+4,Demo,Male,Father ,Mother,address_1,address_2,123123,demo@gmail.com,9898989898

@@ -1,0 +1,240 @@
+<?php include('header.php');
+ ?>
+			<div>
+				<ul class="breadcrumb">
+					<li>
+						<a href="<?php echo SITE_URL?>registration/">Registration</a> <span class="divider">/</span>
+					</li>
+					<li>
+						<?php if($type=='request'){?>
+							<a href="<?php echo SITE_URL?>registration/requests/">Requests List</a>
+						<?php }else{?>
+							<a href="<?php echo SITE_URL?>registration/">List</a>
+						<?php }?>
+
+					</li>
+				</ul>
+			</div>
+			
+<form method="POST">
+		<div>		
+                  <div class="box span12">
+                    <div class="box-header well" data-original-title>
+                    <h2><i class="icon-user"></i> Registration <?php if($type=='request'){?> Requests<?php }?></h2>
+                    <div class="box-icon">
+                                    <a href="#" class="btn btn-minimize btn-round"><i class="icon-chevron-up"></i></a>
+                                    <a href="#" class="btn btn-close btn-round"><i class="icon-remove"></i></a>
+                    </div>
+			        </div>
+			        <?php echo $this->notifications->display_html();?> 
+		       <div class="box-content">
+ <!--..............................................................SEARCH CODE............................................................................-->                    
+
+			       <div class="control-group">
+				   <div class="controls">
+                            <table  cellpadding="5px" >
+                            <tr>
+                             <td>Service:<br />
+                             <?php
+								  $options=array(""=>"Select");
+							     foreach($services as $servicesval)
+								  {
+                                      $names=$servicesval['service_name'];
+                                      $id=$servicesval['service_id'];
+								      $options[$id] = $names;
+	                              }
+								  $js = 'onChange="list_details(this.value)"';
+								  echo form_dropdown('service_id', $options,isset( $service_id )?$service_id: '',$js);
+								?>
+                             </td>
+                             </tr>
+                             <tr id="tr_details" >
+                                <?php include('list.php');?>
+                             </tr> 
+
+                                </table>
+                                    
+                                    <button type="submit" class="btn btn-primary" id="Search" name="Search" >Search</button>
+                                    <button class="btn" type="reset" onclick="window.location='<?php echo SITE_URL?>franchise/'">Reset</button>	
+					</div>
+					<?php   if(isset($list) && (!empty($list)) ||((isset($aim) &&($aim =='approved_list'&& (!empty($aim)))))) { ?> 
+			            <div align="right"> <button type="submit" class="btn btn-primary" id="Export" name="Export"> Export Excel</button></div>
+	            <?php } ?>
+						
+             </div>
+                              
+<!--..............................................................SEARCH CODE END............................................................................--> 
+<?php /* if(isset($info) && $info!='' )*/
+
+if($info=="empty")
+
+ { ?>
+	
+ <div class="notifications">
+ <div class="alert alert-info " id="notification-bar">
+		<button type="button" class="close" data-dismiss="alert">x</button>
+		<h4 class="alert-heading">Information!</h4>
+		<p style="color:#F00">The fields Service , Period  & Competition Levels are mandatory</p>
+</div>
+</div>
+<?php
+ } ?>
+
+
+<?php if(empty($list) || isset($_POST['Search']))
+/*if($info=="nodata")*/
+
+{?>
+
+<div class="notifications">
+ <div class="alert alert-info " id="notification-bar">
+		<button type="button" class="close" data-dismiss="alert">&times;</button>
+		<h4 class="alert-heading">Information!</h4>
+		 <strong>No record(s) found.</strong> 
+</div>
+</div>
+<?php
+}
+else
+{
+?>
+						<table class="table table-bordered">
+						  <thead>
+							  <tr>
+								  
+								    <th>Serial No</th>
+								    <th>CIN</th>
+								    <th>Name</th>
+                            <th>Category</th>
+								    <th>School</th>
+								    <?php if(isset($aim) && ($aim =='approve'|| $aim =='approved_list')){ ?>
+                            <th>TemperoryRegistrationNumber</th>
+                            <?php }?>
+                            <?php if($aim =='approved_list'){ ?>
+                            <th>PermenantRegistrationNumber</th>
+                            <?php }?>
+                           
+                            <th>Registred Date</th>
+                            <th>Actions</th>
+                                   
+							  </tr>
+						  </thead>   
+						  <tbody>
+						  <?php 
+						       $i=1;
+						      foreach($list as $value){ 
+						  ?>
+                         
+							<tr>
+								    <td><?php echo $i++; ?></td>
+								    <td class="center"><?php echo $value['cin']; ?></td>
+									 <td class="center"><?php echo $value['first_name'].$value['middle_name'].$value['last_name']; ?></td>
+                            <td class="center"><?php echo $value['categoryKey']; ?></td>
+                            <td class="center"><?php echo $value['school_name']; ?></td>
+                            <?php if(isset($aim) && ($aim =='approve'|| $aim =='approved_list')){ ?> <td class="center"> <?php echo $value['temperory_registration_number'];} ?></td>
+                            <?php if($aim =='approved_list'){ ?><td class="center"> <?php echo $value['permenent_registration_number'];} ?></td>
+
+                             <td class="center"><?php echo $value['register_date']; ?></td>
+                              <?php if(isset($aim) && $aim =='approve'){?>
+                              <td class="center"> 
+                                                          
+								          	   <a class="btn btn-danger" href="<?php echo SITE_URL?>registration/approve/reg_id/<?php echo trim($value['competition_registration_id']);?>/schedule_to_studentid/<?php echo trim($value['schedule_to_student_id']);?>/student_id/<?php echo trim($value['student_id']);?>" title="View">
+										         <i class="icon-edit icon-white"></i>  
+										         Approve                                            
+									            </a>
+									    </td>
+									    <?php } if(isset($aim) && $aim =='approved_list'){?>
+									    <td class="center"> 
+									                         
+								          	   <a class="btn btn-success" href="<?php echo SITE_URL?>registration/view/reg_id/<?php echo trim($value['competition_registration_id']);  ?>" title="View">
+										         <i class="icon-zoom-in icon-white"></i>  
+										         View                                            
+									            </a>
+                                       <a class="btn btn-info" href="<?php echo SITE_URL?>registration/edit/reg_id/<?php echo $value['competition_registration_id']; ?>/approved/yes" title="Edit">
+										          <i class="icon-edit icon-white"></i>  Edit
+										         </a>
+									           
+                                  </td>
+									            
+									        <?php }else{ ?>
+                                   <td class="center"> 
+                                                       
+								          	   <a class="btn btn-success" href="<?php echo SITE_URL?>registration/view/reg_id/<?php echo trim($value['competition_registration_id']);  ?>" title="View">
+										         <i class="icon-zoom-in icon-white"></i>  
+										         View                                            
+									            </a>
+									            <a class="btn btn-info" href="<?php echo SITE_URL?>registration/edit/reg_id/<?php echo $value['competition_registration_id']; ?>" title="Edit">
+										          <i class="icon-edit icon-white"></i>  Edit
+										          </a>
+                                        <a class="btn btn-danger" href="<?php echo SITE_URL?>registration/changeStatus/id/<?php echo $value['competition_registration_id']; ?>" title="Delete">
+										          <i class="icon-trash icon-white"></i>  Delete
+									             </a>
+                                  </td>
+                                  <?php }?>
+						 </tr>
+						<?php } ?>	
+					  </tbody>
+					  </table> 
+					
+					<div class="pagination pagination-left">
+						 <ul>
+							<li><a href="#">Prev</a></li>
+							<li><a href="#">1</a></li>
+							<li><a href="#">2</a></li>
+							<li><a href="#">3</a></li>
+							<li><a href="#">4</a></li>
+							<li><a href="#">5</a></li>
+							<li><a href="#">Next</a></li>
+						 </ul>
+					</div>
+			<?php }?>
+					</div>
+				</div><!--/span-->
+			</div>
+		</div>	
+        </div>
+		</form>
+		<script src="<?php echo VIEW_SCRIPT;?>jquery-1.9.1.min.js"></script>
+         <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js" ></script>
+			<script type="text/javascript">
+			
+			function list_details(id)
+			{	
+			
+						/*alert("88888888888");*/
+						
+						var service_id=$("#service_id").val();
+						var service_id=id;
+						
+							var data=new Object();
+							data.service_id=service_id;
+							/*alert(data.service_id);*/
+							
+							
+							$.ajax({
+															
+								url:BASE_URL+"manage/registration/listDetails/",
+								data:data,
+								type: 'POST',
+								success:function(result){
+									
+									/*lert("xchjhfv"+result);*/
+									
+									
+									$("#tr_details").html("");
+									$("#tr_details").html(result);
+									},/*end success*/																		
+														
+								error:function()
+									{
+										alert("Failed to load ajax noregistered_listDetails");	
+									}/*end error*/																	
+						
+							});/*end ajax*/
+	          }
+			
+            </script>
+<?php include('footer.php'); ?>
+<?php 
+	$this->confirmation->confirm('delete');
+?>

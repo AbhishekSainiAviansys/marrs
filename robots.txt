@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+https://www.ammer.com/cs/online-aplikace/sitemap.xml

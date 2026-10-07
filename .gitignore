@@ -1,0 +1,30 @@
+# ---- Secrets: never commit (use .env.example as the template) ----
+.env.development
+.env.production
+
+# ---- Runtime / logs ----
+error_log
+*.log
+admin/application/logs/
+franchiselogin/application/logs/
+lunar/application/logs/
+student_registration/application/logs/
+zoomzoom/application/logs/
+
+# ---- Oversized archives (6.5 GB) ----
+.well-known.zip
+
+# ---- Large media / content folders (site assets, not code) ----
+study_material_free/
+study_material_paid/
+mock_papers/
+zoomzoom_free_material/
+zoomzoom_paid_material/
+uploads/
+newassets/
+images/
+
+# ---- OS / editor junk ----
+Thumbs.db
+.DS_Store
+.vscode/

@@ -1,0 +1,655 @@
+<?php
+
+if (!defined('BASEPATH'))
+
+    exit('No direct script access allowed');
+
+class Result extends CI_Controller 
+
+{
+
+/*....................................................................................................................*/	
+
+    public function __construct()
+
+	 {
+
+			parent::__construct();
+
+			$this->load->library('encrypt');
+
+			$this->load->library('session');
+
+			$this->load->library('validation');
+
+			$this->load->library("csv");
+
+			$this->load->helper('form');
+
+		
+
+		   /*$this->CI =& get_instance();   */    
+
+			$this->load->library('form_validation');
+
+			$this->load->model('resultmodel');
+
+			$this->load->model('franchisemodel');
+
+			
+
+			$this->load->model('servicemodel');
+
+			$this->load->model('competitionlevelmodel');
+
+			$this->load->model('Categorymodel');
+
+			$this->load->model('periodmodel');
+
+			$this->load->model('schoolmodel');
+
+			$this->load->model('locationmodel');
+
+
+
+    } /*end function __constructfranchisemodel*/
+
+/*....................................................................................................................*/	
+
+	public function index() {   } /*end function index*/
+
+/*....................................................................................................................*/	
+
+		
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+  /*...........csv Result........................*/
+
+  public function upload_csv_result()
+
+  {
+
+	  if(isset($_POST['submit']) && $_POST['submit']=='Submit')
+
+	  {  
+
+	     $data['period_id']            =  $search_period_id = $this->input->post('period_id');
+
+	     $data['competition_level_id'] =  $search_level_id = $this->input->post('competition_level_id');
+
+	     $data['service_id']           =  $search_service_id = $this->input->post('service_id');
+
+	  
+
+		 $csvResult_upolad_logArray = array();
+
+		 
+
+				$start_cell_row=3;/*skip first 2 heading rows */
+
+				$i=0;
+
+		 
+
+		 if($_FILES['csv']['size'] > 0) 
+
+		 {   
+
+			 	//get the csv file 
+
+				$file = $_FILES['csv']['tmp_name']; 
+
+				$handle = fopen($file,"r"); 
+
+				//loop through the csv file and insert into database 
+
+				do
+
+				{	
+
+				  if($i >= $start_cell_row)
+
+				  { /*echo "<br>"; echo $i ."-". $resultRow_from_csv[0];*/
+
+				     if($resultRow_from_csv[0]) 
+
+					 { 
+
+						$cin               =  addslashes($resultRow_from_csv[0]);
+
+						$status            =  addslashes($resultRow_from_csv[1]);
+
+						
+
+						$grade1            =  addslashes($resultRow_from_csv[2]);
+
+						$grade2            =  addslashes($resultRow_from_csv[3]);
+
+						$grade3            =  addslashes($resultRow_from_csv[4]);
+						
+						$grade4            =  addslashes($resultRow_from_csv[5]);
+
+						
+
+						$csv_result_array  =  array('cin'              => $cin , 
+
+						                               'status'           => $status ,
+
+													   'grade1'           =>$grade1,
+
+													   'grade2'           =>$grade2,
+
+													   'grade3'           =>$grade3,
+													   
+													   'grade4'           =>$grade4,
+
+													   'search_period_id' => $search_period_id,
+
+													   'search_level_id'  => $search_level_id,
+
+													   'search_service_id'=> $search_service_id);
+
+
+
+							/*echo "<pre>";print_r($csv_result_array);exit;	*/					   
+
+						 $csv_upload_status = $this->resultmodel->save_csv_result($csv_result_array);
+
+						 array_push($csvResult_upolad_logArray,$csv_upload_status);
+
+					 }/*End if*/
+
+					 
+
+					}
+
+				$i=$i+1;	
+
+			   }while($resultRow_from_csv = fgetcsv($handle,1000,",","'"));
+
+			    
+
+			   /*............ End Do while ................*/
+
+			   $data['csvResult_upoload_logArray'] = $csvResult_upolad_logArray;
+
+			   /*unset($_FILES);*/
+
+			   $this->notifications->notify('Result Uploaded Successfully','success');
+
+		   }/* End if */
+
+     }/* End of if */
+
+		 $service_id=1;		 
+
+	 
+
+	$params = array("service_id"=>$service_id);	
+
+	$data['services'] = $this->servicemodel->listservice($params);
+
+	$data['level']    = $this->competitionlevelmodel->listcompetitionlevel($params);	
+
+	$data['period']   = $this->periodmodel->listperiod();
+
+	$this->load->view("upload_result_file.php",$data);
+
+  }/*END of function import()*/
+
+ 
+
+ /*------------------------------------------------------------------------------------------------------------------*/  
+
+	public function listDetails()
+
+	{
+
+			   $service_id=$this->input->post('service_id');
+
+			   $params = array("bulk_service_id" => $service_id);
+
+			   $data['franchise'] = $this->franchisemodel->listFranchise($params);
+
+			   $data['levels']    = $this->competitionlevelmodel->listcompetitionlevel($service_id);
+
+			   $data['category']  = $this->Categorymodel->listCategory($params);
+
+			   $data['periods']   = $this->periodmodel->listperiod();
+
+			   $data['school']    = $this->schoolmodel->listSchool();
+
+			   $this->load->view("detailView.php",$data); 
+
+	   
+
+	}/*end function  listDetails*/
+
+	/*------------------------------------------------------------------------------------------------------------------*/  
+
+
+
+ 
+
+	
+
+	/*-----------------------BELOW FUNCTION DONE BY DEEPA ON 20-5-2015---------------------------*/ 
+
+	
+
+	
+
+	 
+
+	 public function view_result() 
+
+	 {
+
+        
+
+		
+
+		 if (isset($_POST['Search'])) 
+
+		{
+
+            $link = SITE_URL . "result/view_result/aim/export/";
+
+			
+
+            if ($this->input->post('period_id') != '') {
+
+                $link .= "period_id/" . $this->input->post('period_id') . "/";
+
+            }
+
+			
+
+            if ($this->input->post('competition_level_id') != '') {
+
+                $link .= "level_id/" . $this->input->post('competition_level_id') . "/";
+
+            }
+
+			
+
+            if ($this->input->post('result_status') != '') {
+
+                $link .= "result_status/" . $this->input->post('result_status') . "/";
+
+            }
+
+
+
+            if ($this->input->post('country_id') != '') {
+
+                $link .= "country_id/" . $this->input->post('country_id') . "/";
+
+            }
+
+			
+
+			if ($this->input->post('state_subdivision_id') != '') {
+
+                $link .= "state_id/" . $this->input->post('state_subdivision_id') . "/";
+
+            }
+
+			
+
+            if ($this->input->post('franchise_id') != '') {
+
+                $link .= "fr_id/" . $this->input->post('franchise_id') . "/";
+
+            }
+
+			
+
+            redirect($link, 'refresh');
+
+            $data['result_list'] = $_POST;
+
+        }
+
+        /*end if(isset($_POST['Search'])) */
+
+        
+
+		else 
+
+		{
+
+            $uri            = $this->uri->uri_to_assoc(4);
+
+            /* print_r($uri);exit;*/
+
+			
+
+            if ($uri['period_id'] != '' ) 
+
+			{
+
+                $params = array(
+
+                    'period_id'             => $uri['period_id'],
+
+                    'competition_level_id'  => $uri['level_id'],
+
+                    'result_status'         => $uri['result_status'],
+
+                    'country_id'            => $uri['country_id'],
+
+                    'state_subdivision_id'  => $uri['state_id'],
+
+					'franchise_id'          => $uri['fr_id'],
+
+                );
+
+              $data['result_list'] = $this->resultmodel->franchiselist_result($params);
+
+            } 
+
+			else 
+
+			{
+
+                $data['info'] = "empty";
+
+            }
+
+        }/*End of else */
+
+		
+
+		if (isset($_POST['Export'])) 
+
+		{
+
+			
+
+                $params = array(
+
+                    'period_id'             => $uri['period_id'],
+
+                    'competition_level_id'  => $uri['level_id'],
+
+                    'result_status'         => $uri['result_status'],
+
+                    'country_id'            => $uri['country_id'],
+
+                    'state_subdivision_id'  => $uri['state_id'],
+
+					'franchise_id'          => $uri['fr_id'],
+
+					
+
+					
+
+                );
+
+        
+
+		  $listResult=  $this->resultmodel->franchiselist_result($params);
+
+		  $list_data=$listResult[1];
+
+		 //print_r($list_data);exit;
+
+          $data = array();
+
+          $n    = 1;
+
+          foreach ($list_data as $item) {
+
+                $item['serial_no'] = $n;
+
+				$item['school']    =  $item['school_name']." , ".$item['school_address'];
+
+				/*----------------------------------------------------------*/
+
+
+
+				if($item['father_email'] !='')
+
+				  {    $item['Email']     =  $item['father_email'];   }
+
+				
+
+				if($item['mother_email'] !='')
+
+				  {    
+
+				       if($item['Email']!='')
+
+					      { $item['Email']     .=  " , ".$item['mother_email'];  }
+
+					   else 
+
+					      { $item['Email']     .= $item['mother_email'];  }  
+
+				  }/* End if */
+
+				/*----------------------------------------------------------*/
+
+				
+
+				if($item['father_phone'] !='')
+
+				  {    $item['Mobile']     =  $item['father_phone'];   }
+
+				if($item['mother_phone'] !='')
+
+				  {    
+
+				       if($item['Mobile']!='')
+
+					      { $item['Mobile']     .=  " , ".$item['mother_phone'];  }
+
+					   else 
+
+					      { $item['Mobile']     .= $item['mother_phone'];  }  
+
+				  }				  
+
+				/*----------------------------------------------------------*/
+
+				
+
+				$item['Mobile']     ='';
+
+				if($item['father_phone'] !='')
+
+				  {    $item['Mobile']     =  $item['father_phone'];   }
+
+				if($item['mother_phone'] !='')
+
+				  {    
+
+				       if($item['Mobile']!='')
+
+					      { $item['Mobile']     .=  " , ".$item['mother_phone'];  }
+
+					   else 
+
+					      { $item['Mobile']     .= $item['mother_phone'];  }  
+
+				  }				  
+
+				/*----------------------------------------------------------*/
+
+				$item['LandPone'] =  $item['std_code']." - ".$item['phone'];
+
+				
+
+                $data[]            =
+
+				 array(
+
+						$item['serial_no'],
+
+						$item['competition_level_name'],
+
+						$item['period_name'],
+
+						$item['first_name'] . " " . $item['middle_name'] . " " . $item['last_name'],
+
+						$item['cin'],
+						$item['class_key'],
+
+						$item['categoryKey'],
+
+						$item['school'],
+
+						$item['center_name']. " " . $item['center_address'],
+
+						$item['status'],
+
+						$item['grade1'],
+
+						$item['grade2'],
+						
+						$item['grade3'],
+						
+						$item['grade4'],
+
+						$item['franchise_code'],
+
+						$item['Email'],
+
+						$item['Mobile'],
+
+						$item['LandPone']
+
+                );
+
+                /*echo $item['serial_no'];exit;*/
+
+                $n++;
+
+            }/*End foreach */
+
+            $this->csv->export($data, array(
+
+                'SiNo','Competition level','Period','Student Name','CIN','Class','Category','School','Competition Centre','Result Status',
+                'Synonyms & Antonyms','Spell It','Word Origin','Aural Skill','franchise_code','Email','Mobile','LandPone'
+               ), 'result_list.csv');
+
+            exit;
+
+        }
+
+		
+
+		
+
+		
+
+		
+
+		$data['aim']                  = $uri['aim'];
+
+        $data['competition_level_id'] = $uri['level_id'];
+
+        $data['period_id']            = $uri['period_id'];
+
+        $data['franchise_id']         = $uri['fr_id'];  
+
+		$data['result_status']        = $uri['result_status'];
+
+		$data['country_id']           = $uri['country_id'];
+
+		$data['state_subdivision_id'] = $uri['state_id'];
+
+		$params                       = array('service_id' => 1);
+
+		$data['levels']               = $this->competitionlevelmodel->listcompetitionlevel($params);
+
+		$data['periods']              = $this->periodmodel->listperiod();
+
+		 $data['stateatload']          = $this->locationmodel->get_indian_states();       
+
+		if($uri['state_id'] !='' )
+
+		{ $data['franchise']            = $this->franchisemodel->Get_Statewise_Franchise($uri['state_id']);      }
+
+	    $this->load->view("view_result.php", $data);
+
+    }
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	} /*end class*/
+
+	/*------------------------------------------------------------------------------------------------------------------*/  
+
+
+
+	/*^^^^^^^^^^^^^^^^^^^Back up codes^(Done on 18th Dec 2014 Noon )^^^^^^^^^^^^^^^^^^^*/
+
+		/*if(isset($_POST['submit']) && $_POST['submit']=='Export')
+
+		 {
+
+			$export_data = $this->session->userdata('x');
+
+			print_r($export_data);exit;
+
+			$log_data     =  array($export_data);
+
+			$n            =  1;
+
+			
+
+			echo "<pre>";
+
+			foreach($export_data as $item):
+
+			print_r($item);
+
+					$item['serial_no'] = $n;
+
+					$log_data[]        = array($item['cin'], $item['Result status'], $item['Error'],$item['Level'] );
+
+					$n++;
+
+			endforeach;
+
+		    $this->csv->export($log_data, array('serialno','CIN','Result status','Error','Competion Level'), 'result_report.csv');  exit;
+
+		 
+
+		 }/*End of if(isset($_POST['submit']) && $_POST['submit']=='Export') */
+

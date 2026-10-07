@@ -1,0 +1,240 @@
+<?php
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+class Index extends CI_Controller {
+    public function __construct() {
+        parent::__construct();
+        if (!$this->session->userdata('user_id')) {
+            redirect('manage/login/', 'refresh');
+        } 
+        $this->load->model('blogmodel');
+        $this->load->model('eventmodel');
+              $this->load->model('studentsmodel');
+       $this->load->model('schoolmodel');
+    }
+    public function index() 
+	{
+	    if(isset($_POST['ok'])){
+	        //echo 'ij';die;
+	        $ar_cin=array(
+'22AS210006',
+'22AS210001',
+'22AB410434',
+'22AS210144',
+'22AB410430',
+'22AS210043',
+'22AS210141',
+'22AS210035',
+'22AS210037',
+'22AS210039',
+'22AS210032',
+'22AS210042',
+'22AB410509',
+'22AS210122',
+'22AS210012',
+'22AS210085',
+'22AS210155',
+'22AS210046',
+'22AS210089',
+'22AS210088',
+'22AB410440',
+'22AS210048',
+'22AS210145',
+'22AS210091',
+'22AS210019',
+'22AS210018',
+'22AS210067',
+'22AS210177',
+'22AS210100',
+'22AB410525',
+'22AS210158',
+'22AS210165',
+'22AS210097',
+'22AS210170',
+'22AB410445',
+'22AS210023',
+'22AS210109',
+'22AS210187',
+'22AB410535',
+'22AS210113',
+'22AB410533',
+'22AS210114',
+'22AS210116',
+'22AS210193',
+'22AB410538',
+'22AS210028',
+'22AS210118',
+'22AS210189'
+);
+
+$ar_ma=array(
+    
+'100',
+'96',
+'82',
+'79',
+'66',
+'66',
+'56',
+'52',
+'48',
+'46',
+'33',
+'18',
+'17',
+'100',
+'99',
+'97',
+'92',
+'80',
+'73',
+'68',
+'28',
+'25',
+'21',
+'100',
+'62',
+'44',
+'44',
+'44',
+'24',
+'24',
+'23',
+'21',
+'21',
+'20',
+'18',
+'13',
+'100',
+'67',
+'46',
+'33',
+'21',
+'100',
+'97',
+'47',
+'45',
+'42',
+'42',
+'37'
+    );
+    
+    $ar_gr=array(
+        
+'A+++',
+'A+++',
+'A+++',
+'A++',
+'A++',
+'A++',
+'A+',
+'A+',
+'A+',
+'A+',
+'A',
+'A',
+'A',
+'A+++',
+'A+++',
+'A+++',
+'A+++',
+'A+++',
+'A++',
+'A++',
+'A',
+'A',
+'A',
+'A+++',
+'A++',
+'A+',
+'A+',
+'A+',
+'A',
+'A',
+'A',
+'A',
+'A',
+'A',
+'A',
+'B+++',
+'A+++',
+'A++',
+'A+',
+'A',
+'A',
+'A+++',
+'A+++',
+'A+',
+'A+',
+'A+',
+'A',
+'A'    );
+
+
+$ar_ra=array(
+    
+'RANK-1',
+'RANK-2',
+'RANK-3',
+'RANK-4',
+'RANK-5',
+'',
+'',
+'',
+'',
+'',
+'',
+'',
+'',
+'RANK-1',
+'RANK-2',
+'RANK-3',
+'RANK-4',
+'RANK-5',
+'',
+'',
+'',
+'',
+'',
+'RANK-1',
+'RANK-2',
+'RANK-3',
+'RANK-3',
+'RANK-3',
+'',
+'',
+'',
+'',
+'',
+'',
+'',
+'',
+'RANK-1',
+'RANK-2',
+'RANK-3',
+'',
+'',
+'RANK-1',
+'RANK-2',
+'RANK-3',
+'',
+'',
+'',
+'',
+   '', 
+    );
+    
+	     for($i=0;$i>=count($arr_cin);$i++){
+	        // echo $i; die;
+	         $this->db->where('cin',$ar_cin[$i]);
+	         $this->db->where('clevel','2');
+	         $this->db->update('cin_result',array('marks'=>$ar_ma[$i],'rank'=>$ar_ra[$i],'grade'=>$ar_gr[$i]));
+	         //echo $this->db->last_query();die;
+	     }   
+	        
+	    }
+        $this->load->view("index.php", $data);
+    }
+}
+
+

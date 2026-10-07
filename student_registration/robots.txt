@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+https://marrs.in/student_registration/sitemap.xml

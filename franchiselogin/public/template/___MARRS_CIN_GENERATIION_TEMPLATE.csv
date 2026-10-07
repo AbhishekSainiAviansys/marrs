@@ -1,0 +1,2 @@
+class-id,category_id,stud_name,gender,father_name ,mother_name,communication_address,communication_address1,pincode,email,mobile_number
+1,1,Ram,Male,father,mom,add,address,1111111,demo@email.com,21212121212

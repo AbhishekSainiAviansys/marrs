@@ -1,0 +1,1238 @@
+<?php include('header.php');
+//print_r($material_free_a);
+        
+ //print_r($activate[0]);
+//print_r($material_free);
+//print_r($material_paid);
+//print_r($price);
+ //echo 'ok';die;
+
+//   echo $combo1.'ko';
+//   echo $combo2.'pkk';
+//   echo $combo3.'jj';
+//   echo $combo4.'hi';
+   
+   $res = $this->db->get_where('competition_level_byproduct',array('level_id' =>$clevel,'product_name' =>$result['product_name']))->row();
+   //echo $this->db->last_query();
+		$nlev=$res->level_name;$level_id=$res->level_id;
+//print_r($res);
+
+
+$ressss = $this->db->get_where('competition_level_byproduct',array('level_id' =>$result['clevel'],'product_name' =>$result['product_name']))->row();
+		$lev_name=$ressss->level_name;
+
+?>
+ <style>
+ #productWrapper h4{
+     font-size:18px;
+ }
+      #certificateWrapper h1 {
+        font-size: 70px;
+        font-family: Snell Roundhand, cursive;
+        font-weight: 500;
+        color: #ffffff;
+      }
+      .sign {
+        position: absolute;
+        bottom: 0;
+        padding: 5% 5% 0% 5%;
+        right: 0;
+        font-weight: 700;
+        color: #676b6d;
+      }
+      #certificateWrapper th {
+        white-space: nowrap;
+        font-size: 12px;
+        font-weight: 700;
+        color: #707475;
+      }
+      #certificateWrapper td {
+        font-size: 15px;
+        font-weight: 700;
+        color: #676b6d;
+        white-space: nowrap;
+
+      }
+      .partcip-detail b {
+        color: #5c5d60;
+      }
+      #certificateWrapper {
+        align-items: center;
+        min-height: 100vh;
+      }
+      
+      #certificateWrapper .card {
+        background-image: url("../images/bg.png");
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover;
+        border: none;
+      }
+      
+      #certificateWrapper .card .card-body {
+        border: 4px solid #f8c913;
+      }
+	 
+	 
+	.custom-alert {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            z-index: 1000;
+            font-family: Arial, sans-serif;
+        }
+
+        .custom-alert p {
+            margin: 0;
+        }
+
+
+        .cart-container {
+            position: fixed;
+            right: 10px;
+            bottom: 70%;
+            z-index: 1000;
+            left: 77%;
+        }
+
+        #cartBtn {
+            background-color: #17a2b8;
+            color: white;
+            border-radius: 50px;
+            padding: 10px 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            text-decoration: none;
+        }
+    
+        #cartBtn:hover {
+            background-color: #138496;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        #cartCount {
+            font-weight: bold;
+        }
+        
+        .row>* {
+            flex-shrink: 0;
+            width: 25%;
+            max-width: 100%;
+            padding-right: calc(var(--bs-gutter-x)* .5);
+            padding-left: calc(var(--bs-gutter-x)* .5);
+            margin-top: var(--bs-gutter-y);
+        }
+        
+        .row {
+            /* --bs-gutter-x: -5.5rem; */
+            --bs-gutter-y: 0;
+            display: flex;
+            flex-wrap: wrap;
+            margin-top: calc(-1* var(--bs-gutter-y));
+            margin-right: calc(-.5* var(--bs-gutter-x));
+            margin-left: calc(-.5* var(--bs-gutter-x));
+        }
+        
+    </style>
+    
+<script>
+    $(document).ready(function() {
+    
+    function hello(){
+        alert('ok');
+    }
+    });
+</script>
+   
+   <section>
+<!--<marquee><h3 style='color:crimson;'>Due to some server issue. Study Materials will be downloadable by tommarow morning... </h3></marquee>-->
+        <div id="productWrapper" class="container">
+        <div class="text-start">                
+                <a href="<?php echo base_url();?>Cin_login/index" class="btn btn-outline-secondary btn-sm text-start"><i class="fa-solid fa-circle-chevron-left me-2" style="font-size: 16px;"></i>BACK</a>  
+                </div>
+                <?php if(!empty($result)){?>
+            <div class="row text-center my-2 mx-2" id="result">
+                
+				<!--<div class="text-end" style=" margin-top: -25px;">                -->
+    <!--            <a href="<?php echo base_url();?>Cin_login/certificateform" class="btn btn-outline-secondary btn-sm text-start"><i class="fa-solid fa-circle-chevron-right me-2" style="font-size: 16px;"></i>Provisional Certificate</a>  -->
+    <!--            </div>-->
+              <div class="col-12 my-2 mx-2">
+                <h2><?php echo $lev_name; ?> RESULT</h2>
+              </div>
+              <div class="col-sm-12 col-md-6 col-lg-2">
+              <div class="card text-center">
+                <div class="card-body">
+                  <h3 class="card-title">CIN</h3>
+                  <h4><?php echo $result['cin']; ?></h4>
+                </div>
+              </div>
+                <h3></h3>
+               
+              </div>
+              <div class="col-sm-12 col-md-6 col-lg-2">
+              <div class="card text-center">
+                <div class="card-body">
+                  <h3 class="card-title">Grade</h3>
+                  <h4><?php echo $result['grade']; ?></h4>
+                </div>
+              </div>
+              </div>
+              <div class="col-sm-12 col-md-6 col-lg-2">
+              <div class="card text-center">
+                <div class="card-body">
+                  <h3 class="card-title">Rank</h3>
+                  <h4><?php if($result['rank']==''){echo 'No Rank';}else{echo $result['rank'];} ?></h4>
+                </div>
+              </div>
+              </div>
+              <div class="col-sm-12 col-md-6 col-lg-2">
+              <div class="card text-center">
+                <div class="card-body">
+                  <h3 class="card-title">Star Speller</h3>
+                  <h4><?php if($result['speller']){echo $result['speller'];}else{echo '-';} ?></h4>
+                </div>
+              </div>
+              </div>
+              <div class="col-sm-12 col-md-6 col-lg-2">
+              <div class="card text-center">
+                <div class="card-body">
+                  <h3 class="card-title">Best Performer</h3>
+                  <h4><?php if($result['performer']){echo $result['performer'];}else{echo '-';} ?></h4>
+                </div>
+              </div>
+              </div>
+              <div class="col-sm-12 col-md-6 col-lg-2">
+              <div class="card text-center">
+                <div class="card-body">
+                  <h3 class="card-title">Status</h3>
+                  <h4><?php
+                  if($result['show']=='skip'){
+                      echo 'Promoted';
+                  }else{
+                  echo $result['status']; 
+                  }
+                  
+                  ?></h4>
+                </div>
+              </div>
+              </div>
+            </div>
+            <?php }else{?>
+            <div class='text-center'><h5> Result Will Announce Soon...</h5></div><?php } ?>
+        </div>
+    </section>
+    
+    
+    
+    <section style='padding-bottom:110px;'>
+        <div class="container col">
+            
+            
+            
+            <div class="row" id="reg_download">
+                
+                
+                <?php 
+               if(!empty($result)){
+    
+                    if($result['status']=='Q'){ ?>
+                    
+                    
+                        <div class="col-12 mx-2 text-center">   
+                            <h3 style="padding:10px"><span style="color:#006699;">Congratulations!! for successfully register at</span><span style="color:crimson;font-family: 'FontAwesome';font-size: 16px;letter-spacing:2px;"> <?php echo $nlev; ?></span><span style="color:#006699;"> Championship..</span></h3> 
+                        </div>
+                        
+                    <div class='col-sm-8'>    
+                        <nav class=''>
+                          <div class="nav nav-tabs text-center" id="nav-tab" role="tablist">
+                            <button class="nav-link active" id="nav-home-tab" data-bs-toggle="tab" data-bs-target="#nav-home" type="button" role="tab" aria-controls="nav-home" aria-selected="true">Competition</button>
+                            <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-profile" type="button" role="tab" aria-controls="nav-profile" aria-selected="false">Paid Study Material</button>
+                            <button class="nav-link" id="nav-contact-tab" data-bs-toggle="tab" data-bs-target="#nav-contact" type="button" role="tab" aria-controls="nav-contact" aria-selected="false">Orientation</button>
+                            <button class="nav-link" id="nav-mock-tab" data-bs-toggle="tab" data-bs-target="#nav-mock" type="button" role="tab" aria-controls="nav-mock" aria-selected="false">Mock Test</button>
+                            
+                            
+                            <!--<button class="nav-link" id="nav-combo-tab" data-bs-toggle="tab" data-bs-target="#nav-combo" type="button" role="tab" aria-controls="nav-combo" aria-selected="false">COMBOs</button>-->
+                            
+                          <?php 
+                          $res = $this->db->get_where('new_cart',array('cin' =>$result['cin'],'clevel'=>$level_id))->result_array(); 
+                          //echo $this->db->last_query();
+                          if(!empty($res)){
+                          ?>
+                             <form method='POST'>
+                            <!--<button type="submit" name="invoice"  class="btn btn-primary btn-mg " id='pay-button' style='font-size:12px;font-weight:700;'>Invoice</button> -->
+    						</form>
+						<?php } ?>
+						
+                          </div>
+                        </nav>
+                        <div class="tab-content" id="nav-tabContent">
+                          <div class=" tab-pane fade show active" id="nav-home" role="tabpanel" aria-labelledby="nav-home-tab">
+                                <div style="">
+                            
+                                <?php //if($activate[0]['status']=='Live'){  ?>
+                                <div class="tab-content row" id="myTabContent">
+                                    
+                                    <div    class="d-flex tab-pane fade show active" id="competition-tab" role="competition-tab" aria-labelledby="competition-tab" >
+                                        <?php
+                                        if($competition=='No'){ 
+                                       
+                                        ?> 
+                                    
+                                            <div class="col-sm-12 col-md-6 col-lg-3 ">
+                                                <div class="card my-2 mx-2 p-1 w-100">
+                                                    <img src="https://img.icons8.com/bubbles/100/000000/trophy.png" class="img-fluid" alt="...">
+                                                    <div class="card-body" style='padding-bottom:0px;'>
+                                                        <h5 class="card-title"><?php  echo $result['product_name']; 
+                                                        ?></h5>
+                                                        
+                                                    </div>
+                                                    <div class="card-body" style='padding-top:0px;'>
+                                                        <a href="#" class="card-link">Price: <?php echo '₹ '.$activate[0]['product_price']; ?></a>
+                                                        
+                                                    </div>
+                                                    
+                                                    
+                                                    <div class="card-footer">
+                                                        <?php    
+                                               // $res = $this->db->get_where('amount_cart',array('cin' =>$cin))->result_array();
+                                                $this->db->select('*');
+                                                $this->db->from('amount_cart');
+                                                $this->db->where("(title = 'Combo-4' AND cin = '".$result['cin']."')OR (cin = '".$result['cin']."' AND title = 'Combo-2') OR (cin = '".$result['cin']."' AND title = 'Combo-1') OR (cin = '".$result['cin']."' AND title = 'Combo-3')");
+
+                                                $query = $this->db->get();
+                                               // echo $this->db->last_query();
+                                                $res= $query->result_array();
+                                                //print_r($res);
+                                                if( $activate[0]['product_price']!='0'){
+                                                ?>
+                                                        
+                                                        <a href="#" class="btn btn-warning btn-sm" onClick="misb(this.id);" id="<?php echo $activate[0]['product_price'].'+'.'Competition';?>"> <i class="fa-solid fa-cart-plus"></i></a>
+                                                        <a href="#" class="btn btn-danger btn-sm" onClick="remove_misb(this.id);" id="<?php echo $activate[0]['product_price'].'+'.'Competition';?>"><i class="fa-solid fa-trash-can"></i></a>
+                                                    <?php } ?>
+                                                    
+                                                    </div>
+                                                    
+                                                    
+                                                </div>
+                                            </div>
+                                    
+                                         <?php }else{ //echo 'ok';?>
+                                         
+                                         
+                                                <div class="col-sm-12 col-md-6 col-lg-3 ">
+                                                    <div class="card my-2 mx-2 p-1 w-100">
+                                                        <img src="https://img.icons8.com/bubbles/100/000000/trophy.png" class="img-fluid" alt="...">
+                                                        <div class="card-body" style='padding-bottom:0px;'>
+                                                            <h5 class="card-title"><?php echo $result['product_name']; ?></h5>
+                                                        </div>
+                                                        <div class="card-body" style='padding-top:0px;'>
+                                                            <a href="#" class="card-link">Admit Card: Paid</a>
+                                                        <h5><?php echo $nlev; ?></h5>
+                                                        </div>
+                                                        <div class="card-footer">
+                                                            <?php if($admit_card_av=='yes'){?>
+                                                           Download
+                                                           <form method='post' action="<?php echo base_url()?>cin_login/admitcard_download" >
+                                                           <button name="<?php echo base_url();?>cin_login/admitcard_download" class="btn btn-warning btn-sm my-1" value='<?php echo $admit_id;?>'> <i class="fa-solid fa-download"></i></button>
+                                                            </form> 
+                                                            
+                                                            
+                                                           <?php }?>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                    
+                                
+                                                <!-- ============ free material =============== -->
+                                                <?php  if(!empty($material_free_a)){ //print_r($material_free);?>
+                                                            <div class="col-sm-12 col-md-6 col-lg-3 "> 
+                                                    
+                                                                <div class="card my-2 mx-2 p-1 w-100">
+                                                                <img src="https://img.icons8.com/bubbles/100/000000/books.png" class="img-fluid"/>
+                                                                <form method='post' action="<?php echo base_url()?>cin_login/free_material_" >
+                                                                    <input type='text' name='product' value='<?php echo $material_free_a->product_name; ?>' style='display:none;' >
+                                                                    <input type='text' name='class' value='<?php echo $material_free_a->class; ?>' style='display:none;' >
+                                                                    <input type='text' name='clevel' value='<?php echo $material_free_a->clevel; ?>' style='display:none;' >
+                                                                    <input type='text' name='period' value='<?php echo $material_free_a->period; ?>' style='display:none;' >
+                                                                    <input type='text' name='status' value="<?php echo 'Free'; ?>" style='display:none;' >
+                                                                    <input type='text' name='type' value="<?php echo 'A'; ?>" style='display:none;' >
+                                                                    <div class="card-body">
+                                                                        <h5 class="card-title">Study Material A- Free</h5>
+                                                                    </div>
+                                                                    <div class="card-body">
+                                                                        <a href="#" class="card-link">Price: Free</a>
+                                                                        <?php if(!empty($material_free_a)){?>
+                                                                        <a href="#" class="card-link">Available</a>
+                                                                        <?php }else{ echo 'Not Applicable for this level.'; }?>
+                                                                    </div>
+                                                                    <div class="card-footer p-1">
+                                                                        <a href="#" class="btn btn-warning btn-sm my-1"> Free Material</a>
+                                                                        <?php if(!empty($material_free_a)){?>
+                                                                        <!--<a href="#" class="card-link">Available</a>-->
+                    
+                                                                        <button type="submit" name="download_free" id="download_free" class="btn btn-secondary btn-sm " ><i class="fa-solid fa-download"></i></button>
+                                                                                                                                  <?php } ?> 
+                                                                       
+                                                                        <!--<a href="#" type="submit" name="download_free" class="btn btn-secondary btn-sm my-1"><i class="fa-solid fa-download"></i></a>-->
+                                                                    </div>
+                                                                </form>
+                                                                </div>
+                                                        
+                                                            </div>
+                                                <?php }
+                                                
+                                                if(!empty($material_free_b)){?>
+                                                
+                                               <div class="col-sm-12 col-md-6 col-lg-3 "> 
+                                            
+                                                        <div class="card my-2 mx-2 p-1 w-100">
+                                                        <img src="https://img.icons8.com/bubbles/100/000000/books.png" class="img-fluid"/>
+                                                        <form method='post' action="<?php echo base_url()?>cin_login/free_material_" >
+                                                            <input type='text' name='product' value='<?php echo $material_free_b->product_name; ?>' style='display:none;' >
+                                                            <input type='text' name='class' value='<?php echo $material_free_b->class; ?>' style='display:none;' >
+                                                            <input type='text' name='clevel' value='<?php echo $material_free_b->clevel; ?>' style='display:none;' >
+                                                            <input type='text' name='period' value='<?php echo $material_free_b->period; ?>' style='display:none;' >
+                                                            <input type='text' name='status' value="<?php echo 'Free'; ?>" style='display:none;' >
+                                                            <input type='text' name='type' value="<?php echo 'B'; ?>" style='display:none;' >
+                                                            <div class="card-body">
+                                                                <h5 class="card-title">Study Material B- Free</h5>
+                                                            </div>
+                                                            <div class="card-body">
+                                                                <a href="#" class="card-link">Price: Free </a>
+                                                                <?php if(!empty($material_free_b)){?>
+                                                                <a href="#" class="card-link">Available</a>
+                                                                <?php }else{ echo 'Not Applicable for this level.'; }?>
+                                                            </div>
+                                                            <div class="card-footer p-1">
+                                                                <a href="#" class="btn btn-warning btn-sm my-1"> Free Material</a>
+                                                                <?php if(!empty($material_free_b)){?>
+                                                                <!--<a href="#" class="card-link">Available</a>-->
+            
+                                                                <button type="submit" name="download_free" id="download_free" class="btn btn-secondary btn-sm " ><i class="fa-solid fa-download"></i></button>
+                                                                                                                          <?php } ?> 
+                                                               
+                                                                <!--<a href="#" type="submit" name="download_free" class="btn btn-secondary btn-sm my-1"><i class="fa-solid fa-download"></i></a>-->
+                                                            </div>
+                                                        </form>
+                                                        </div>
+                                                
+                                                    </div>
+                                        
+                                            
+                                            
+                                                <?php }?>
+                                    
+                                                <?php } 
+                                    
+                                       // }
+                                       ?>
+                            
+                                    </div>
+                            
+                            
+                            
+                                </div>
+                            </div> 
+                          
+                          
+                          
+                          </div>
+                          
+                          <div class="tab-pane fade" id="nav-profile" role="tabpanel" aria-labelledby="nav-profile-tab">
+                              <div class='row'>
+                                <?php
+                                //if($activate[0]['study_material_a']=='study_material_a') { 
+                                if($study_material_a=='No'){
+                                ?>
+                                    <?php  //if(!empty($material_paid_a)){ //echo $material_paid_a->folder;?>
+                                  
+                                        <div class="col-sm-12 col-md-6 col-lg-3 d-flex">
+                                            
+                                            <div class="card my-2 mx-2 p-1 w-100">
+                                                <img src="https://img.icons8.com/bubbles/100/000000/storytelling.png" class="img-fluid" alt="...">
+                                                 <form method='post' action="<?php echo base_url()?>cin_login/paid_mat_new">
+                                                        <input type='text' name='product' value='<?php echo $material_paid_a->product_name; ?>' style='display:none;' >
+                                                        <input type='text' name='class' value='<?php echo $material_paid_a->class; ?>' style='display:none;' >
+                                                        <input type='text' name='clevel' value='<?php echo $material_paid_a->clevel; ?>' style='display:none;' >
+                                                        <input type='text' name='period' value='<?php echo $material_paid_a->period; ?>' style='display:none;' >
+                                                        <input type='text' name='status' value='<?php echo "Paid"; ?>' style='display:none;' >
+                                                        <input type='text' name='type' value='<?php echo "A"; ?>' style='display:none;' >
+                                                <div class="card-body">
+                                                    <h5 class="card-title"><?php echo 'Study Material A- Paid'; ?></h5>
+                                                </div>
+                                                <div class="card-body">
+                                                    <a href="#" class="card-link"><?php 
+                                                    if(!empty($material_paid_a)){
+                                                    echo 'Available';}else{
+                                                        echo 'Not Applicable for this level.';
+                                                    }
+                                                    
+                                                    ?></a>
+                                                    
+                                                </div>
+                                                <div class="card-footer p-1">
+                                                        <a href="#" class="btn btn-warning btn-sm my-1">Paid Material</a>
+                                                     <?php   if(!empty($material_paid_a)){
+                                                    ?>
+                                                       <button type="submit" name="download_paid" id="download_paid" class="btn btn-secondary btn-sm my-1 "><i class="fa-solid fa-download"></i></button>
+                                                    <?php } ?>    
+                                                </div>
+                                                  </form>
+                                            </div>
+                                        </div>
+                                      
+                                    <?php //} 
+                                
+                              }
+                              //}
+                              ?>
+                                
+                                <!-- ======================== Material B ==================     -->
+                                 <?php
+                                 //echo 'ok';
+                               // if($activate[0]['study_material_c']=='study_material_c') { 
+                                    //echo $study_material;
+                                if($study_material_c=='No'){
+                                ?>
+                            
+                                        <div class="col-sm-12 col-md-6 col-lg-3 d-flex">
+                                            
+                                            <div class="card my-2 mx-2 p-1 w-100">
+                                                <img src="https://img.icons8.com/bubbles/100/000000/storytelling.png" class="img-fluid" alt="...">
+                                                 <form method='post' action="<?php echo base_url()?>cin_login/paid_mat_new">
+                                                        <input type='text' name='product' value='<?php echo $material_paid_c->product_name; ?>' style='display:none;' >
+                                                        <input type='text' name='class' value='<?php echo $material_paid_c->class; ?>' style='display:none;' >
+                                                        <input type='text' name='clevel' value='<?php echo $material_paid_c->clevel; ?>' style='display:none;' >
+                                                        <input type='text' name='period' value='<?php echo $material_paid_c->period; ?>' style='display:none;' >
+                                                        <input type='text' name='status' value='<?php echo "Paid"; ?>' style='display:none;' >
+                                                        <input type='text' name='type' value='<?php echo "C"; ?>' style='display:none;' >
+                                                <div class="card-body">
+                                                    <h5 class="card-title"><?php echo 'Study Material C- Paid'; ?></h5>
+                                                </div>
+                                                <div class="card-body">
+                                                    <a href="#" class="card-link"><?php 
+                                                    if(!empty($material_paid_c)){
+                                                    echo 'Available';}else{
+                                                        echo 'Not Applicable for this level.';
+                                                    }
+                                                    
+                                                    ?></a>
+                                                    
+                                                </div>
+                                                <div class="card-footer p-1">
+                                                        <a href="#" class="btn btn-warning btn-sm my-1">Paid Material</a>
+                                                     <?php   if(!empty($material_paid_c)){
+                                                    ?>
+                                                       <button type="submit" name="download_paid" id="download_paid" class="btn btn-secondary btn-sm my-1 "><i class="fa-solid fa-download"></i></button>
+                                                    <?php } ?>  
+                                                    </div>
+                                                  </form>
+                                            </div>
+                                        </div>
+                                      
+                                    <?php //} 
+                                    
+                                    }
+                                   
+                                    ?>
+                                    
+                                <!-- ======================== Material B ==================     -->
+                                 <?php
+                                 //echo 'ok';
+                                //if($activate[0]['study_material_b']=='study_material_b') { 
+                                    //echo $study_material;
+                                if($study_material_b=='No'){
+                                ?>
+                             
+                                        <div class="col-sm-12 col-md-6 col-lg-3 d-flex">
+                                            
+                                            <div class="card my-2 mx-2 p-1 w-100">
+                                                <img src="https://img.icons8.com/bubbles/100/000000/storytelling.png" class="img-fluid" alt="...">
+                                                 <form method='post' action="<?php echo base_url()?>cin_login/paid_mat_new">
+                                                        <input type='text' name='product' value='<?php echo $material_paid_b->product_name; ?>' style='display:none;' >
+                                                        <input type='text' name='class' value='<?php echo $material_paid_b->class; ?>' style='display:none;' >
+                                                        <input type='text' name='clevel' value='<?php echo $material_paid_b->clevel; ?>' style='display:none;' >
+                                                        <input type='text' name='period' value='<?php echo $material_paid_b->period; ?>' style='display:none;' >
+                                                        <input type='text' name='status' value='<?php echo "Paid"; ?>' style='display:none;' >
+                                                        <input type='text' name='type' value='<?php echo "B"; ?>' style='display:none;' >
+                                                <div class="card-body">
+                                                    <h5 class="card-title"><?php echo 'Study Material B- Paid'; ?></h5>
+                                                </div>
+                                                <div class="card-body">
+                                                    <a href="#" class="card-link"><?php 
+                                                    if(!empty($material_paid_b)){
+                                                    echo 'Available';}else{
+                                                        echo 'Not Applicable for this level.';
+                                                    }
+                                                    
+                                                    ?></a>
+                                                    
+                                                </div>
+                                                <div class="card-footer p-1">
+                                                        <a href="#" class="btn btn-warning btn-sm my-1">Paid Material</a>
+                                                     <?php   if(!empty($material_paid_b)){
+                                                    ?>
+                                                       <button type="submit" name="download_paid" id="download_paid" class="btn btn-secondary btn-sm my-1 "><i class="fa-solid fa-download"></i></button>
+                                                    <?php } ?>  
+                                                    </div>
+                                                  </form>
+                                            </div>
+                                        </div>
+                                      
+                                    <?php //} 
+                                    
+                                    }
+                                    //}
+                                    ?>    
+                                    
+                            </div>
+                              
+                          </div>
+                          
+                          
+                          <div class="tab-pane fade" id="nav-contact" role="tabpanel" aria-labelledby="nav-contact-tab">
+                               <div class='row'>
+                                   <!--// =========== orientation A ============== //-->
+                    <?php
+                    //if($activate[0]['orientation_a']=='orientation_a'){ //echo 'ok'; 
+                    if($orientation_a=='No'){
+                    ?>
+                        
+                   
+                        <div class="col-sm-12 col-md-6 col-lg-3 d-flex">
+    
+                            <div class="card my-2 mx-2 p-1 w-100">
+                                <img src="https://img.icons8.com/clouds/100/000000/purchase-order.png" class="img-fluid" alt="...">
+                                    <form method='post' action="<?php echo base_url()?>Cin_login/orientation_">
+                                    <input type='text' name='type' value='<?php echo "A"; ?>' style='display:none;' >
+                                <div class="card-body">
+                                    <h5 class="card-title">Orientation A Slip</h5>
+                                </div>
+                                <div class="card-body">
+                                    <a href="#" class="card-link"><?php echo 'Available'; ?></a>
+                                    
+                                </div>
+                                <div class="card-footer p-1">
+                                    <a href="#" class="btn btn-warning btn-sm my-1">Orienatation</a>
+                                    <!--<a href="#" class="btn btn-secondary btn-sm"><i class="fa-solid fa-download"></i></a>-->
+                                   <button type="submit" name="download_slip"class="btn btn-secondary btn-sm my-1 " ><i class="fa-solid fa-download"></i></button>
+                                </div>
+                                 </form>
+                            </div>
+                             
+                        </div>
+                   
+                   <?php } //} ?>
+                   
+                   <!-- ================ orientation B ==================== -->
+                   <?php
+                    //if($activate[0]['orientation_b']=='orientation_b'){ 
+                    if($orientation_b=='No'){
+                    ?>
+                       
+                   
+                        <div class="col-sm-12 col-md-6 col-lg-3 d-flex">
+    
+                            <div class="card my-2 mx-2 p-1 w-100">
+                                <img src="https://img.icons8.com/clouds/100/000000/purchase-order.png" class="img-fluid" alt="...">
+                                    <form method='post' action="<?php echo base_url()?>Cin_login/orientation_">
+                                    <input type='text' name='type' value='<?php echo "B"; ?>' style='display:none;' >
+                                <div class="card-body">
+                                    <h5 class="card-title">Orientation B Slip</h5>
+                                </div>
+                                <div class="card-body">
+                                    <a href="#" class="card-link"><?php echo 'Available'; ?></a>
+                                    
+                                </div>
+                                <div class="card-footer p-1">
+                                    <a href="#" class="btn btn-warning btn-sm my-1">Orienatation</a>
+                                    <!--<a href="#" class="btn btn-secondary btn-sm"><i class="fa-solid fa-download"></i></a>-->
+                                   <button type="submit" name="download_slip"class="btn btn-secondary btn-sm my-1 " ><i class="fa-solid fa-download"></i></button>
+                                </div>
+                                 </form>
+                            </div>
+                             
+                        </div>
+                   
+                   <?php } //} ?>
+                   
+                   
+                   <!-- =================== orientation C ======================== -->
+                   <?php
+                    //if($activate[0]['orientation_c']=='orientation_c'){ //echo 'ok'; 
+                    if($orientation_c=='No'){
+                    ?>
+                        
+                   
+                        <div class="col-sm-12 col-md-6 col-lg-3 d-flex">
+    
+                            <div class="card my-2 mx-2 p-1 w-100">
+                                <img src="https://img.icons8.com/clouds/100/000000/purchase-order.png" class="img-fluid" alt="...">
+                                    <form method='post' action="<?php echo base_url()?>Cin_login/orientation_">
+                                    <input type='text' name='type' value='<?php echo "C"; ?>' style='display:none;' >
+                                <div class="card-body">
+                                    <h5 class="card-title">Orientation C Slip</h5>
+                                </div>
+                                <div class="card-body">
+                                    <a href="#" class="card-link"><?php echo 'Available'; ?></a>
+                                    
+                                </div>
+                                <div class="card-footer p-1">
+                                    <a href="#" class="btn btn-warning btn-sm my-1">Orienatation</a>
+                                    <!--<a href="#" class="btn btn-secondary btn-sm"><i class="fa-solid fa-download"></i></a>-->
+                                   <button type="submit" name="download_slip"class="btn btn-secondary btn-sm my-1 " <i class="fa-solid fa-download"></i></button>
+                                </div>
+                                 </form>
+                            </div>
+                             
+                        </div>
+                   
+                   <?php } //} ?>
+                   
+                   <!-- ======================= Mock Test ======================== -->
+                   
+                   </div></div>
+                   
+                   
+                   <div class="tab-pane fade" id="nav-mock" role="tabpanel" aria-labelledby="nav-mock-tab">
+                               <div class='row'>
+                   <?php
+                    //if($activate[0]['mock_test']=='mock_test'){ //echo 'ok'; 
+                    if($mock_test=='No'){
+                    ?>
+                        
+                   
+                        <div class="col-sm-12 col-md-6 col-lg-3 d-flex">
+    
+                            <div class="card my-2 mx-2 p-1 w-100">
+                                <img src="https://img.icons8.com/clouds/100/000000/purchase-order.png" class="img-fluid" alt="...">
+                                    <form method='post' action="<?php echo base_url()?>cin_login/mock_paper">
+                                                        <input type='text' name='product' value='<?php echo $mock_av->product_name; ?>' style='display:none;' >
+                                                        <input type='text' name='class' value='<?php echo $mock_av->class; ?>' style='display:none;' >
+                                                        <input type='text' name='clevel' value='<?php echo $mock_av->clevel; ?>' style='display:none;' >
+                                                        <input type='text' name='period' value='<?php echo $mock_av->period; ?>' style='display:none;' >
+                                <div class="card-body">
+                                    <h5 class="card-title">Mock Test Paper</h5>
+                                </div>
+                                <div class="card-body">
+                                    <a href="#" class="card-link"><?php 
+                                    if(!empty($mock_av)){echo 'Available';}else{
+                                    echo 'Available Soon'; } ?></a>
+                                    
+                                </div>
+                                <div class="card-footer p-1">
+                                    <a href="#" class="btn btn-warning btn-sm my-1">Mock Test</a>
+                                    <!--<a href="#" class="btn btn-secondary btn-sm"><i class="fa-solid fa-download"></i></a>-->
+                                    <?php 
+                                    if(!empty($mock_av)){?>
+                                   <button type="submit" name="mock_paper"class="btn btn-secondary btn-sm my-1 "><i class="fa-solid fa-download"></i></button>
+                                   <?php } else { ?>
+                                   <button type="submit" class="btn btn-secondary btn-sm my-1 " style="pointer-events: none"><i class="fa-solid fa-download"></i></button>
+                               
+                                   <?php } ?>
+                                </div>
+                                 </form>
+                            </div>
+                             
+                        </div>
+                   
+                   <?php } //} ?>
+                   
+                   
+                </div>
+                              
+          </div>
+                          
+                          
+                          
+                         
+                        </div>
+                       
+                    </div>    
+                        
+               
+                   
+                    <?php  
+                }?>
+                
+                <?php }
+                else{ ?>
+                            <?php 
+                            // echo $product_name;
+                                if($product_name ==''){
+                                    
+                                    $substring = substr($this->session->userdata('cin'), 2, 2);
+                                 
+                                    $product= $this->db->get_where('products',array('in13' =>$substring))->row();
+                                    
+                                    
+                                    $material_free_a= $this->db->get_where('study_material',array('clevel' =>'1','status'=>'Free','type'=>'A','product_name'=>$product->product_name,'class'=>$student['class']))->row();
+                                    $material_free_b= $this->db->get_where('study_material',array('clevel' =>'1','status'=>'Free','type'=>'B','product_name'=>$product->product_name,'class'=>$student['class']))->row();
+                                }else{
+                                    if($product_name=='MaRRS Math Zoom Zoom Challenge'){
+                                        $material_free_a= $this->db->get_where('study_material',array('clevel' =>'14','status'=>'Free','type'=>'A','product_name'=>$product_name,'class'=>$student['class']))->row();
+                                        // echo $this->db->last_query();
+                                        $material_free_b= $this->db->get_where('study_material',array('clevel' =>'14','status'=>'Free','type'=>'B','product_name'=>$product_name,'class'=>$student['class']))->row();
+                                   
+                                    }else{
+                                        $material_free_a= $this->db->get_where('study_material',array('clevel' =>'1','status'=>'Free','type'=>'A','product_name'=>$product_name,'class'=>$student['class']))->row();
+                                        // echo $this->db->last_query();
+                                        $material_free_b= $this->db->get_where('study_material',array('clevel' =>'1','status'=>'Free','type'=>'B','product_name'=>$product_name,'class'=>$student['class']))->row();
+                                    }
+                                }
+                                // print_r($material_free_a);
+                            ?>
+                            <div class="col-sm-12 col-md-6 col-lg-3 "> 
+                                                    
+                                                                <div class="card my-2 mx-2 p-1 w-100">
+                                                                <img src="https://img.icons8.com/bubbles/100/000000/books.png" class="img-fluid"/>
+                                                                <form method='post' action="<?php echo base_url()?>cin_login/free_material_" >
+                                                                    <input type='text' name='product' value='<?php echo $material_free_a->product_name; ?>' style='display:none;' >
+                                                                    <input type='text' name='class' value='<?php echo $material_free_a->class; ?>' style='display:none;' >
+                                                                    <input type='text' name='clevel' value='<?php echo $material_free_a->clevel; ?>' style='display:none;' >
+                                                                    <input type='text' name='period' value='<?php echo $material_free_a->period; ?>' style='display:none;' >
+                                                                    <input type='text' name='status' value="<?php echo 'Free'; ?>" style='display:none;' >
+                                                                    <input type='text' name='type' value="<?php echo 'A'; ?>" style='display:none;' >
+                                                                    <div class="card-body">
+                                                                        <h5 class="card-title">Study Material A- Free</h5>
+                                                                    </div>
+                                                                    <div class="card-body">
+                                                                        <a href="#" class="card-link">Price: Free</a>
+                                                                        <?php if(!empty($material_free_a)){?>
+                                                                        <a href="#" class="card-link">Available</a>
+                                                                        <?php }else{ echo 'Not Applicable for this level.'; }?>
+                                                                    </div>
+                                                                    <div class="card-footer p-1">
+                                                                        <a href="#" class="btn btn-warning btn-sm my-1"> Free Material</a>
+                                                                        <?php if(!empty($material_free_a)){ ?>
+                                                                        <!--<a href="#" class="card-link">Available</a>-->
+                    
+                                                                        <button type="submit" name="download_free" id="download_free" class="btn btn-secondary btn-sm " ><i class="fa-solid fa-download"></i></button>
+                                                                                                                                  <?php } ?> 
+                                                                       
+                                                                        <!--<a href="#" type="submit" name="download_free" class="btn btn-secondary btn-sm my-1"><i class="fa-solid fa-download"></i></a>-->
+                                                                    </div>
+                                                                </form>
+                                                                </div>
+                                                        
+                                                            </div>
+                                                
+                                                    <div class="col-sm-12 col-md-6 col-lg-3 "> 
+                                            
+                                                        <div class="card my-2 mx-2 p-1 w-100">
+                                                            <img src="https://img.icons8.com/bubbles/100/000000/books.png" class="img-fluid"/>
+                                                            <form method='post' action="<?php echo base_url()?>cin_login/free_material_" >
+                                                            <input type='text' name='product' value='<?php echo $material_free_b->product_name; ?>' style='display:none;' >
+                                                            <input type='text' name='class' value='<?php echo $material_free_b->class; ?>' style='display:none;' >
+                                                            <input type='text' name='clevel' value='<?php echo $material_free_b->clevel; ?>' style='display:none;' >
+                                                            <input type='text' name='period' value='<?php echo $material_free_b->period; ?>' style='display:none;' >
+                                                            <input type='text' name='status' value="<?php echo 'Free'; ?>" style='display:none;' >
+                                                            <input type='text' name='type' value="<?php echo 'B'; ?>" style='display:none;' >
+                                                            <div class="card-body">
+                                                                <h5 class="card-title">Study Material B- Free</h5>
+                                                            </div>
+                                                            <div class="card-body">
+                                                                <a href="#" class="card-link">Price: Free </a>
+                                                                <?php if(!empty($material_free_b)){?>
+                                                                <a href="#" class="card-link">Available</a>
+                                                                <?php }else{ echo 'Not Applicable for this level.'; }?>
+                                                            </div>
+                                                            <div class="card-footer p-1">
+                                                                <a href="#" class="btn btn-warning btn-sm my-1"> Free Material</a>
+                                                                <?php if(!empty($material_free_b)){?>
+                                                                <!--<a href="#" class="card-link">Available</a>-->
+            
+                                                                <button type="submit" name="download_free" id="download_free" class="btn btn-secondary btn-sm " ><i class="fa-solid fa-download"></i></button>
+                                                                                                                          <?php } ?> 
+                                                               
+                                                                <!--<a href="#" type="submit" name="download_free" class="btn btn-secondary btn-sm my-1"><i class="fa-solid fa-download"></i></a>-->
+                                                            </div>
+                                                        </form>
+                                                        </div>
+                                                
+                                                    </div>
+                                                    
+                                                    
+                                            <?php if($oron=='yes'){
+                                            // print_r($ori_act);
+                                            
+                                            
+                                            
+                                            $orietation= $this->db->get_where('orientation_school_cart',array('cin' =>$this->session->userdata('cin'),'con_id'=>$ori_act->con_id,'orientation'=>'yes'))->row();
+                                            $mock= $this->db->get_where('orientation_school_cart',array('cin' =>$this->session->userdata('cin'),'con_id'=>$ori_act->con_id,'mock'=>'yes'))->row();
+                                                                     
+                                            
+                                            ?>    
+                                            
+                                            <div class="cart-container">
+                                                <a href="#" class="btn btn-info btn-sm" onClick="loadCartCount();" id="cartBtn">
+                                                    Cart (<span id="cartCount">0</span>)
+                                                </a>
+                                            </div>
+                                            
+                                                    <div class="col-sm-12 col-md-6 col-lg-3">
+                                                        <div class="card my-2 mx-2 p-1 w-100">
+                                                            <img src="https://img.icons8.com/?size=100&id=HOaunZsdV3cV&format=png&color=000000" class="img-fluid"/>
+                                                            <form method='post'>
+                                                                <div class="card-body">
+                                                                    <h5 class="card-title">Purchase Orientation-Mock</h5>
+                                                                </div>
+                                                                <div class="card-body">
+                                                                    <href class='btn btn-primary' onClick="hello();" >Hello</href>
+                                                                    <?php if (!empty($ori_act->price)) { ?>
+                                                                        <a href="#" class="card-link"><?php echo 'Orientation Price: ' . $ori_act->price; ?></a><br>
+                                                                    <?php } ?>
+                                                                    <?php if (!empty($ori_act->mock_price)) { ?>
+                                                                        <a href="#" class="card-link"><?php echo 'Mock Price: ' . $ori_act->mock_price; ?></a>
+                                                                    <?php } ?>
+                                                                </div>
+                                                                <div class="card-footer p-1">
+                                                                    <div class="product-buttons">
+                                                                        <?php if (empty($orietation)) { ?>
+                                                                            <a href="#" class="btn btn-warning btn-sm" 
+                                                                            onClick="addToCart('<?php echo $ori_act->con_id; ?>', 'orientation');" 
+                                                                                
+                                                                                
+                                                                            >
+                                                                                Orientation <i class="fa-solid fa-cart-plus"></i>
+                                                                            </a>
+                                                                        <?php } else { ?> 
+                                                                            <button type="submit" name="download_free" id="download_free" class="btn btn-secondary btn-sm">
+                                                                                <i class="fa-solid fa-download"></i>
+                                                                            </button>
+                                                                        <?php } ?>
+                                                    
+                                                                        <?php if (empty($mock)) { ?>
+                                                                            <a href="#" class="btn btn-warning btn-sm" onClick="addToCart('<?php echo $ori_act->con_id; ?>', 'mock');">
+                                                                                Mock <i class="fa-solid fa-cart-plus"></i>
+                                                                            </a>
+                                                                        <?php } else { ?>
+                                                                            <a href="#" type="submit" name="download_free" class="btn btn-secondary btn-sm my-1">
+                                                                                <i class="fa-solid fa-download"></i>
+                                                                            </a>
+                                                                        <?php } ?>
+                                                                    </div>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>          
+                                            
+                                            <?php }else{
+                                                if($oron=='no'){
+                                                    echo '';
+                                                }
+                                                
+                                            } ?>
+                                            
+                
+                <?php } ?>
+                </div>
+                
+               
+           </div>     
+                
+    </section>
+    
+    
+    
+    
+    <div class="overlay" id="overlay"></div>
+    <div class="custom-alert" id="custom-alert">
+        <h5 id="alert-message" style='color:#4d79ff;'></h5>
+    </div>
+                        
+<!-- Modal for cart -->
+<!-- Modal structure -->
+<div id="cartModal" class="modal ">
+    <div class="modal-content">
+        <span class="close" onClick="closeCartModal()">&times;</span>
+        <h4>Purchase Program Cart</h4>
+        <div id="cartItems"></div>
+        <div>Total: Rs. <span id="cartTotalAmount">0</span></div>
+        <button id="checkoutButton" class="btn btn-success">Pay Now</button>
+    </div>
+</div>
+
+<style>
+    /* Modal overlay */
+.modal {
+    display: none; 
+    z-index: 999; 
+    left: 0;
+    top: 0;
+    width: 100%; 
+    height: 100%; 
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 50%; /* Adjust this to control the modal width */
+    max-width: 600px; /* Maximum width to keep it responsive */
+    position: absolute;
+    top: 50%; 
+    left: 50%;
+    transform: translate(-50%, -50%); /* Center horizontally and vertically */
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.close {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    color: #aaa;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover, .close:focus {
+    color: #000;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* Adjust modal header */
+.modal h4 {
+    margin-top: 0;
+}
+
+/* Button styles */
+#checkoutButton {
+    margin-top: 20px;
+    width: 100%;
+}
+
+/* For mobile responsiveness */
+@media screen and (max-width: 768px) {
+    .modal-content {
+        width: 90%;
+    }
+}
+
+</style>
+
+
+
+
+
+
+<!-- Load Bootstrap CSS & JS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Optional: Your custom cart container styling -->
+
+  <div class="toast" id="myToast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-header">
+        <strong class="mr-auto">Notification</strong>
+        <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+    <div class="toast-body">
+        <!-- Toast message goes here -->
+    </div>
+</div>
+  
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+<script
+      src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
+      integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    
+    
+<script>
+
+
+$(document).ready(function() {
+    
+    // function hello(){
+    //     alert('ok');
+    // }
+    
+    
+    
+    loadCartCount(); 
+    
+    function loadCartCount() {
+        $.ajax({
+            url: '<?php echo base_url('/Cin_login/count_cart'); ?>',
+            type: 'GET',
+            success: function(response) {
+                $('#cartCount').text(response.trim());
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading cart count: ', status, error);
+            }
+        });
+    }
+    
+    
+
+     function addToCart(productId, productType) {
+        //  alert('ok');
+        $.ajax({
+            url: '<?php echo base_url("/Cin_login/add_ca"); ?>',
+            type: 'POST',
+            data: { id: productId, type: productType },
+            success: function(response) {
+                loadCartCount();
+                showToaster("Item added to cart successfully.");
+            },
+            error: function(xhr, status, error) {
+                console.error('Error adding to cart: ', status, error);
+            }
+        });
+    }
+    
+
+    
+
+        
+
+    
+    // Show cart modal with cart items
+    $('#cartBtn').on('click', function(event) {
+        event.preventDefault();
+        $.ajax({
+            url: '<?php echo base_url('/Cin_login/get_cart_items'); ?>',
+            type: 'GET',
+            success: function(response) {
+                var cartData = JSON.parse(response);
+                displayCartData(cartData);
+                openCartModal();
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading cart data: ', status, error);
+            }
+        });
+    });
+
+    // Display cart data in modal
+    // Display cart data in modal
+    function displayCartData(response) {
+    // Ensure you're accessing the cartData field inside the response object
+    var cartData = response.cartData;
+
+    var cartItemsDiv = $('#cartItems');
+    var totalAmount = 0;
+    cartItemsDiv.empty(); // Clear any existing items
+
+    if (!Array.isArray(cartData) || cartData.length === 0) {
+        cartItemsDiv.html('<p>Your cart is empty.</p>');
+        $('#checkoutButton').hide(); // Hide the checkout button if the cart is empty
+    } else {
+        var tableHtml = `
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Amount</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        cartData.forEach(function(item) {
+            var amount = item.orientation_amt ? item.orientation_amt : (item.mock_amt ? item.mock_amt : 0);
+            tableHtml += `
+                <tr>
+                    <td>${item.orientation === 'yes' ? 'Orientation' : 'Mock'}</td>
+                    <td>Rs. ${amount}</td>
+                    <td>
+                        <button class="btn btn-outline-danger btn-sm remove-from-cart" data-item-id="${item.orientation_school_cart_id}">
+                            Remove
+                        </button>
+                    </td>
+                </tr>
+            `;
+            totalAmount += parseFloat(amount);
+        });
+
+        tableHtml += `</tbody></table>`;
+        cartItemsDiv.html(tableHtml);
+        $('#cartTotalAmount').text(totalAmount.toFixed(2));
+        $('#checkoutButton').show(); // Show the checkout button if there are items in the cart
+    }
+
+    // Remove item from cart
+    $('.remove-from-cart').on('click', function() {
+        var itemId = $(this).data('item-id');
+        $.ajax({
+            url: '<?php echo base_url('/Cin_login/remove_ori_cart'); ?>',
+            type: 'POST',
+            data: { id: itemId },
+            success: function(response) {
+                loadCartCount();
+                showToaster("Item removed from cart.");
+                displayCartData(response); // Refresh cart after removal
+            },
+            error: function(xhr, status, error) {
+                console.error('Error removing item: ', status, error);
+            }
+        });
+    });
+}
+
+
+    // Toaster notification
+    function showToaster(message) {
+        var toaster = $('<div class="toaster">' + message + '</div>');
+        $('body').append(toaster);
+        toaster.fadeIn(400).delay(3000).fadeOut(400, function() {
+            $(this).remove();
+        });
+    }
+
+    // Open cart modal
+    function openCartModal() {
+        $('#cartModal').show();
+    }
+
+    // Close cart modal
+    function closeCartModal() {
+        $('#cartModal').hide();
+    }
+});
+
+</script>
+  <!-- JavaScript to Open and Close Modal -->
+<script>
+    // Open modal
+    function openCartModal() {
+        document.getElementById("cartModal").style.display = "block";
+    }
+
+    // Close modal
+    function closeCartModal() {
+        document.getElementById("cartModal").style.display = "none";
+    }
+
+    // Close modal when clicking outside the modal content
+    window.onclick = function(event) {
+        var modal = document.getElementById("cartModal");
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+    
+</script>
+
+
+<?php include("footer.php");?>

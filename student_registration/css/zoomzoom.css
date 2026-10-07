@@ -1,0 +1,239 @@
+body {
+  background-color: #ffff;
+}
+h3 {
+  font-size: 16px;
+  font-weight: 700;
+}
+h4 {
+  font-size: 1.2rem;
+  color: #70757b;
+}
+h1,
+h3 {
+  color: #3d3e3f;
+}
+i {
+  font-size: 1.5rem;
+}
+.navbar {
+  background: linear-gradient(180deg, #266cb7 0%, #182066 100%);
+}
+
+.nav-link {
+  color: #ffff;
+}
+.nav-link:hover {
+  color: aquamarine;
+}
+.navbar-nav .nav-link.active {
+  color: orange;
+}
+.navbar-nav .dropdown-menu {
+  box-shadow: 0 0 10px #666;
+}
+.card {
+  padding: 2%;
+}
+.nav-tabs .nav-link  {
+  color: #000;
+}
+#info1 th,
+#info1 td {
+  padding: 1%;
+  border: none !important;
+  text-align: center;
+}
+#info2 th,
+#info2 td {
+  padding: 1%;
+  border: none !important;
+}
+#info3 th,
+#info3 td {
+  padding: 1%;
+  border: none !important;
+}
+#info1 th,
+#info2 th,
+#info3 th {
+  font-weight: 500;
+  font-size: 15px;
+  color: #46494d;
+  text-align: left;
+  vertical-align: bottom;
+  padding: 10px;
+}
+#info1 td,
+#info2 td {
+  font-weight: 600;
+  font-size: 16px;
+  color: #868a93;
+}
+.table-responsive {
+  border: none;
+}
+#namecard img,
+#otherDetails img,
+#reg_download img,
+#student_login img {
+  background: whitesmoke;
+  border-radius: 50px;
+  display: block;
+  margin: auto;
+}
+#namecard h2 {
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 500;
+  line-height: 1;
+  color: #363d47;
+}
+#namecard img {
+  /* border-top-left-radius: inherit; */
+}
+#namecard .card {
+  background: local;
+  box-shadow: 1px 1px 5px #66b;
+}
+#otherDetails {
+  padding: 2% 0%;
+}
+#otherDetails .card {
+  background-color: #ffff;
+  text-align: left;
+}
+#otherDetails .card-header {
+  background: none;
+  border: 0px;
+}
+#otherDetails .btn {
+  float: right;
+}
+#otherDetails .card i {
+  font-size: 1rem;
+}
+#otherDetails .form-control:disabled {
+  background-color: #ffff;
+  opacity: 1;
+  border: 0px;
+}
+#otherDetails .form-control {
+  border-bottom: 1px solid gray;
+  border-top: 0px;
+  border-left: 0px;
+  border-right: 0px;
+  box-shadow: none;
+  border-radius: 0px;
+}
+#reg_download .card h5 {
+  text-align: center;
+  font-size: 0.8rem;
+}
+#reg_download img {
+  width: 70px;
+}
+#reg_download h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+.reg-down:hover{
+    border:2px solid #40bbe7;
+}
+#result h2 {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: #005580;
+}
+#result .col-sm-12 {
+  padding: 2px;
+}
+#reg_download .card-footer {
+  background: none;
+}
+#reg_download .card a {
+  text-decoration: none;
+}
+#reg_download .card a i {
+  font-size: 1rem;
+}
+#itemCart {
+  box-shadow: 1px 1px 5px #66b;
+}
+.certificate {
+  background-image: url("chestcard.png");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  height: 100vh;
+}
+#student_login .card:before {
+  content: "";
+  z-index: -1;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(-45deg, #63a4ff 0%, #83eaf1 100%);
+  transform: translate3d(0px, 20px, 0) scale(0.95);
+  filter: blur(20px);
+  opacity: var(0.7);
+  transition: opacity 0.3s;
+  border-radius: inherit;
+}
+#student_login .card::after {
+  content: "";
+  z-index: -1;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: inherit;
+  border-radius: inherit;
+}
+#reglogin .card::before {
+  content: "";
+  z-index: -1;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(-45deg, #253237 0%, #e0fbfc 100%);
+  transform: translate3d(0px, 20px, 0) scale(0.95);
+  filter: blur(20px);
+  opacity: var(0.7);
+  transition: opacity 0.3s;
+  border-radius: inherit;
+}
+#reglogin .card::after {
+  content: "";
+  z-index: -1;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: inherit;
+  border-radius: inherit;
+}
+#contentWrapper {
+  background-color: #f7f4f4;
+}
+footer {
+  padding: 1%;
+  /* background: #1a73e8; */
+  background: linear-gradient(180deg, #266cb7 0%, #182066 100%);
+  color: #ffff;
+  /*position: fixed;*/
+  /*bottom:0;*/
+  /*width:100%;*/
+  margin-top:20vh;
+}
+@media (max-width:768px){
+    footer{
+        position:relative;
+    }
+}

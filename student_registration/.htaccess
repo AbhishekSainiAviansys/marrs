@@ -1,0 +1,16 @@
+RewriteEngine on
+RewriteCond $1 !^(index\.php|resources|robots\.txt)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php/$1 [L,QSA]
+RewriteEngine On
+SetEnvIf X-Razorpay-Signature "(.*)" HTTP_X_RAZORPAY_SIGNATURE=$1
+RewriteRule .* - [E=HTTP_X_RAZORPAY_SIGNATURE:%{HTTP:X-Razorpay-Signature}]
+
+
+# RewriteEngine On
+
+# # Route all requests to index.php unless it's a real file or directory
+# RewriteCond %{REQUEST_FILENAME} !-f
+# RewriteCond %{REQUEST_FILENAME} !-d
+# RewriteRule ^(.*)$ index.php/$1 [L,QSA]

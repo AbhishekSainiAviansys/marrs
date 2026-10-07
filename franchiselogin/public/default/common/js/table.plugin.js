@@ -1,0 +1,19 @@
+$(document).ready(function(){
+	$(".listCheckBoxAll").click(function(){
+		if(this.checked){
+			$(".listCheckBoxEach").attr('checked','checked');
+		}
+		else{
+			$(".listCheckBoxEach").removeAttr('checked');
+		}
+	});
+	
+	$(".listCheckBoxEach").click(function(){
+		if($(".listCheckBoxEach").length==$(".listCheckBoxEach:checked").length){
+			$(".listCheckBoxAll").attr('checked','checked');
+		}
+		else{
+			$(".listCheckBoxAll").removeAttr('checked');
+		}
+	});
+});
