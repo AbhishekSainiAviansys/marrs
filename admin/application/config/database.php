@@ -48,13 +48,13 @@
 $active_group = 'default';
 $active_record = TRUE;
 
-$db['default']['hostname'] = (getenv('DB_HOST') !== FALSE) ? getenv('DB_HOST') : 'localhost';
+$db['default']['hostname'] = 'localhost';
 
-$db['default']['username'] = (getenv('DB_USERNAME') !== FALSE) ? getenv('DB_USERNAME') : 'marrscor_marrs'; 
+$db['default']['username'] = 'marrscor_marrs'; 
 
-$db['default']['password'] = (getenv('DB_PASSWORD') !== FALSE) ? getenv('DB_PASSWORD') : '';
+$db['default']['password'] = '8jN}g7XGRczj'; 
 
-$db['default']['database'] = (getenv('DB_DATABASE') !== FALSE) ? getenv('DB_DATABASE') : 'marrscor_marrs'; 
+$db['default']['database'] = 'marrscor_marrs'; 
 
 
 /*$db['default']['hostname'] = 'localhost';

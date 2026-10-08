@@ -12,6 +12,12 @@ lunar/application/logs/
 student_registration/application/logs/
 zoomzoom/application/logs/
 
+admin/application/config/
+franchiselogin/application/config/
+lunar/application/config/
+student_registration/application/config/
+zoomzoom/application/config/
+
 # ---- Oversized archives (6.5 GB) ----
 .well-known.zip
 
@@ -37,3 +43,6 @@ newassets/**/*.mp4
 Thumbs.db
 .DS_Store
 .vscode/
+
+signin
+

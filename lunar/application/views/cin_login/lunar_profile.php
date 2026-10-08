@@ -812,21 +812,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['support_form'])) {
 .school-opt .n{font-size:13px;font-weight:700;color:var(--text-dark);}
 .school-opt .a{font-size:11.5px;color:#5b657a;margin-top:1px;}
 .school-opt-empty{padding:12px;font-size:12.5px;color:#5b657a;}
-
-/* Add School popup */
-#addSchoolModal .modal-content{border-radius:16px;border:0;}
-#addSchoolModal .modal-title{font-weight:800;color:var(--navy);font-size:18px;}
-#addSchoolModal .ns-sub{font-size:13px;color:#5b657a;margin:-4px 0 14px;}
-#addSchoolModal .ns-sec{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);margin:6px 0 10px;display:flex;align-items:center;gap:8px;}
-#addSchoolModal .ns-sec::after{content:'';flex:1;height:1px;background:var(--border);}
-#addSchoolModal .form-label{font-size:12px;font-weight:700;color:#5b657a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.02em;}
-#addSchoolModal .form-control,#addSchoolModal .form-select{border:1px solid #dfe4ef;border-radius:9px;padding:9px 12px;font-size:13.5px;}
-#addSchoolModal .form-control:focus,#addSchoolModal .form-select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,95,224,.10);}
-#addSchoolModal .ns-msg{font-size:13px;font-weight:600;min-height:18px;}
-#addSchoolModal .ns-msg.err{color:var(--red);} #addSchoolModal .ns-msg.ok{color:var(--green);}
-.school-add-link{display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:12.5px;font-weight:700;color:var(--blue);text-decoration:none;cursor:pointer;}
-.school-add-link:hover{text-decoration:underline;}
-.school-opt-empty .school-add-link{margin-top:6px;display:flex;}
 </style>
 </head>
 <body>
@@ -1644,9 +1629,6 @@ $componentsSorted = $boughtFirst($catalogComponents);
             <input type="hidden" name="school_id" id="schoolIdInput" value="<?php echo $esc($schoolId); ?>">
             <div class="school-combo-list" id="schoolList"></div>
           </div>
-          <a class="school-add-link" id="schoolAddLink" data-bs-toggle="modal" data-bs-target="#addSchoolModal">
-            <i class="fa-solid fa-circle-plus"></i> My school is not listed — add it
-          </a>
         </div>
         <div class="field"><label>School Code</label>
           <input type="text" id="schoolCodeView" value="<?php echo $esc($schoolId); ?>" readonly></div>
@@ -1722,91 +1704,33 @@ document.addEventListener('DOMContentLoaded', function () {
 
 </div>
 
-<!-- Add School Modal (full details, same fields as Open School form) -->
-<div class="modal fade" id="addSchoolModal" tabindex="-1" aria-labelledby="addSchoolModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="addSchoolModalLabel">Add your school</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p class="ns-sub">Can't find your school in the list? Add it here and it will be selected for you.</p>
-
-        <div class="ns-sec">School identity</div>
-        <div class="row g-3 mb-2">
-          <div class="col-md-8">
-            <label class="form-label" for="ns_school_name">School name *</label>
-            <input type="text" class="form-control" id="ns_school_name" maxlength="150">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label" for="ns_syllabus">Syllabus *</label>
-            <select class="form-select" id="ns_syllabus">
-              <option value="">Select</option>
-              <option>CBSE</option><option>ICSE</option><option>State Board</option>
-              <option>IB</option><option>IGCSE</option><option>Other</option>
-            </select>
-          </div>
-          <div class="col-12">
-            <label class="form-label" for="ns_address">Address *</label>
-            <input type="text" class="form-control" id="ns_address" maxlength="255">
-          </div>
+<!-- Add School Modal -->
+<div class="modal fade" id="addSchoolModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form method="post" id="schoolForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add School Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="school_name" class="form-label">School Name</label>
+                        <input type="text" class="form-control" id="school_name" name="school_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="school_address" class="form-label">School Address</label>
+                        <textarea class="form-control" id="school_address" name="school_address" rows="3" required></textarea>
+                    </div>
+                    <input type="hidden" name="student_id" value="<?php echo htmlspecialchars($stud['id'] ?? ''); ?>">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Details</button>
+                </div>
+            </form>
         </div>
-
-        <div class="ns-sec">Location</div>
-        <div class="row g-3 mb-2">
-          <div class="col-md-4">
-            <label class="form-label" for="ns_country">Country *</label>
-            <select class="form-select" id="ns_country">
-              <?php if (!empty($countries)) { foreach ($countries as $c) { $c = (array) $c; ?>
-                <option value="<?php echo (int) $c['country_id']; ?>" <?php echo ((int) $c['country_id'] === 105) ? 'selected' : ''; ?>><?php echo $esc($c['country_name']); ?></option>
-              <?php } } else { ?>
-                <option value="105" selected>India</option>
-              <?php } ?>
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label" for="ns_state">State *</label>
-            <select class="form-select" id="ns_state"><option value="">Select state</option></select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label" for="ns_city">District *</label>
-            <select class="form-select" id="ns_city" disabled><option value="">Select state first</option></select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label" for="ns_area">Area *</label>
-            <select class="form-select" id="ns_area" disabled><option value="">Select district first</option></select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label" for="ns_pin">Pin code</label>
-            <input type="text" class="form-control" id="ns_pin" maxlength="10">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label" for="ns_mobile">School mobile *</label>
-            <input type="text" class="form-control" id="ns_mobile" maxlength="15">
-          </div>
-        </div>
-
-        <div class="ns-sec">Administration</div>
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label" for="ns_principal">Principal name *</label>
-            <input type="text" class="form-control" id="ns_principal" maxlength="100">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="ns_principal_email">Principal email</label>
-            <input type="email" class="form-control" id="ns_principal_email" maxlength="100">
-          </div>
-        </div>
-
-        <div class="ns-msg mt-3" id="ns_msg"></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary btn-sm" id="ns_submit">Add &amp; select school</button>
-      </div>
     </div>
-  </div>
 </div>
 <?php if (!empty($student_program)): ?>
 <!-- Program Description Modal -->
@@ -1907,6 +1831,36 @@ document.addEventListener('DOMContentLoaded', function () {
 <script>
 $(document).ready(function () {
     setTimeout(function () { $("#success-alert").fadeOut(500); }, 3000);
+
+    $("#schoolForm").on("submit", function (e) {
+        e.preventDefault();
+        let formData = $(this).serialize();
+
+        $.ajax({
+            url: "<?php echo base_url(); ?>Cin_login/save_school_details",
+            type: "POST",
+            data: formData,
+            dataType: "json",
+            beforeSend: function () {
+                $("#schoolForm button[type='submit']").prop("disabled", true).text("Saving...");
+            },
+            success: function (response) {
+                if (response.status === "success") {
+                    $("#addSchoolModal").modal("hide");
+                    alert("School details saved successfully!");
+                    location.reload();
+                } else {
+                    alert("Error: " + response.message);
+                }
+            },
+            error: function () {
+                alert("Something went wrong. Please try again.");
+            },
+            complete: function () {
+                $("#schoolForm button[type='submit']").prop("disabled", false).text("Save Details");
+            }
+        });
+    });
 });
 
 /* =========================================================================
@@ -2297,16 +2251,7 @@ document.getElementById('programDescModal').addEventListener('show.bs.modal', fu
         list.innerHTML = ''; hl = -1;
         if (!matches.length) {
             var e = document.createElement('div');
-            e.className = 'school-opt-empty';
-            e.innerHTML = 'No school found<a class="school-add-link" id="schoolEmptyAdd"><i class="fa-solid fa-circle-plus"></i> Add &ldquo;' +
-                          (input.value || '').replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }) + '&rdquo; as a new school</a>';
-            var addBtn = e.querySelector('#schoolEmptyAdd');
-            addBtn.addEventListener('mousedown', function (ev) {
-                ev.preventDefault();                       // keep input focused so blur doesn't wipe the typed name
-                window.__schoolQuery = input.value;
-                list.classList.remove('open');
-                bootstrap.Modal.getOrCreateInstance(document.getElementById('addSchoolModal')).show();
-            });
+            e.className = 'school-opt-empty'; e.textContent = 'No school found';
             list.appendChild(e); return;
         }
         matches.forEach(function (s) {
@@ -2343,129 +2288,9 @@ document.getElementById('programDescModal').addEventListener('show.bs.modal', fu
             opts[hl].dispatchEvent(new MouseEvent('mousedown'));
         }
     });
-    // Called by the Add School popup after a successful save
-    window.addSchoolToPicker = function (s) {
-        schools.push(s);
-        choose(s);
-    };
-    var addLink = document.getElementById('schoolAddLink');
-    if (addLink) addLink.addEventListener('mousedown', function () { window.__schoolQuery = input.value; });
-
     var origId = hidden.value, origName = input.value;
     if (form) form.addEventListener('reset', function () {
         setTimeout(function () { hidden.value = origId; input.value = origName; }, 0);
-    });
-})();
-</script>
-<script>
-/* ================= ADD SCHOOL POPUP ================= */
-(function () {
-    var BASE = '<?php echo base_url(); ?>';
-    var modalEl = document.getElementById('addSchoolModal');
-    if (!modalEl) return;
-
-    function $id(i) { return document.getElementById(i); }
-    function say(text, ok) { var m = $id('ns_msg'); m.textContent = text || ''; m.className = 'ns-msg mt-3 ' + (text ? (ok ? 'ok' : 'err') : ''); }
-    function reset(sel, label, disable) { sel.innerHTML = '<option value="">' + label + '</option>'; sel.disabled = !!disable; }
-    function fill(sel, rows, valFn, labelFn, ph) {
-        reset(sel, ph, false);
-        rows.forEach(function (r) { var o = document.createElement('option'); o.value = valFn(r); o.textContent = labelFn(r); sel.appendChild(o); });
-    }
-
-    function loadStates() {
-        var c = $id('ns_country').value;
-        reset($id('ns_state'), 'Select state'); reset($id('ns_city'), 'Select state first', true); reset($id('ns_area'), 'Select district first', true);
-        if (!c) return;
-        fetch(BASE + 'welcome/get_states?country_id=' + encodeURIComponent(c))
-            .then(function (r) { return r.json(); })
-            .then(function (rows) { fill($id('ns_state'), rows, function (s) { return s.state_subdivision_id; }, function (s) { return s.state_subdivision_name; }, 'Select state'); });
-    }
-
-    $id('ns_country').addEventListener('change', loadStates);
-
-    $id('ns_state').addEventListener('change', function () {
-        reset($id('ns_city'), 'Select district', true); reset($id('ns_area'), 'Select district first', true);
-        if (!this.value) return;
-        fetch(BASE + 'welcome/get_cities?state_id=' + encodeURIComponent(this.value))
-            .then(function (r) { return r.json(); })
-            .then(function (rows) { fill($id('ns_city'), rows, function (c) { return c.district_name; }, function (c) { return c.district_name; }, 'Select district'); });
-    });
-
-    $id('ns_city').addEventListener('change', function () {
-        reset($id('ns_area'), 'Select area', true);
-        if (!this.value) return;
-        fetch(BASE + 'welcome/get_areas', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'state_id=' + encodeURIComponent($id('ns_state').value) + '&district_id=' + encodeURIComponent(this.value)
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (rows) { fill($id('ns_area'), rows, function (a) { return a.area_code; }, function (a) { return a.city_name + ' (' + a.area_code + ')'; }, 'Select area'); });
-    });
-
-    var statesLoaded = false;
-    modalEl.addEventListener('show.bs.modal', function () {
-        say('');
-        if (window.__schoolQuery && !$id('ns_school_name').value.trim()) {
-            $id('ns_school_name').value = window.__schoolQuery.trim();
-        }
-        if (!statesLoaded) { statesLoaded = true; loadStates(); }
-    });
-
-    $id('ns_submit').addEventListener('click', function () {
-        var btn = this;
-        var v = {
-            school_name: $id('ns_school_name').value.trim(),
-            syllabus: $id('ns_syllabus').value,
-            school_address: $id('ns_address').value.trim(),
-            country: $id('ns_country').value,
-            state: $id('ns_state').value,
-            city: $id('ns_city').value,
-            area_code: $id('ns_area').value,
-            pin: $id('ns_pin').value.trim(),
-            school_mobile: $id('ns_mobile').value.trim(),
-            school_principal_name: $id('ns_principal').value.trim(),
-            principal_email: $id('ns_principal_email').value.trim()
-        };
-
-        var required = ['school_name','syllabus','school_address','country','state','city','area_code','school_mobile','school_principal_name'];
-        for (var i = 0; i < required.length; i++) { if (!v[required[i]]) { say('Please fill all required (*) fields.'); return; } }
-        if (v.school_name.length < 3) { say('School name is too short.'); return; }
-        if (!/^\d{10,15}$/.test(v.school_mobile)) { say('Enter a valid school mobile number (digits only).'); return; }
-        if (v.principal_email && !/^\S+@\S+\.\S+$/.test(v.principal_email)) { say('Enter a valid principal email.'); return; }
-
-        btn.disabled = true; say('Saving…', true);
-
-        var body = new URLSearchParams(v);
-        // If CSRF protection is enabled, uncomment:
-        // body.append('<?php echo $this->security->get_csrf_token_name(); ?>', '<?php echo $this->security->get_csrf_hash(); ?>');
-
-        fetch(BASE + 'welcome/ajax_add_school', {
-            method: 'POST',
-            headers: {'X-Requested-With': 'XMLHttpRequest'},
-            body: body
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (res) {
-            btn.disabled = false;
-            if (res.status !== 'success') { say(res.message || 'Could not add school.'); return; }
-
-            if (window.addSchoolToPicker) {
-                window.addSchoolToPicker({
-                    id: res.school_id,
-                    name: res.school_name,
-                    addr: (v.school_address + ' ' + v.city).trim()
-                });
-            }
-            say(res.existing ? 'This school already exists — selected it for you.' : 'School added and selected.', true);
-            setTimeout(function () {
-                bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-                ['ns_school_name','ns_address','ns_pin','ns_mobile','ns_principal','ns_principal_email'].forEach(function (id) { $id(id).value = ''; });
-                $id('ns_syllabus').value = '';
-                window.__schoolQuery = '';
-            }, 900);
-        })
-        .catch(function () { btn.disabled = false; say('Network error. Please try again.'); });
     });
 })();
 </script>

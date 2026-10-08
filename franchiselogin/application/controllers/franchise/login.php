@@ -46,12 +46,8 @@ class Login extends CI_Controller {
     public function logout() {
         $this->session->unset_userdata('franchise_id');
         $this->session->unset_userdata('username');
-        $siteUrl = getenv('APP_BASE_URL');
-        if ($siteUrl === FALSE || $siteUrl === '')
-        {
-            $siteUrl = 'https://marrs.in';
-        }
-        redirect(rtrim($siteUrl, '/') . '/', 'refresh');
+        redirect('https://marrs.in/', 'refresh');
     }
 }
+
 

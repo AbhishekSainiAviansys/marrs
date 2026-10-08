@@ -23,7 +23,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 | a PHP script and you can easily do that on your own.
 |
 */
-$config['base_url'] = (getenv('APP_BASE_URL') !== FALSE) ? rtrim(getenv('APP_BASE_URL'), '/') . '/lunar' : 'https://marrs.in/lunar';
+$config['base_url'] = 'https://marrsdev.marrs.in/lunar';
 
 /*
 |--------------------------------------------------------------------------

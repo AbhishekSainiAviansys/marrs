@@ -114,8 +114,8 @@
       <!--<a href="/faq">FAQ</a>-->
       <!--<a href="/testimonials">News & Testimonials</a>-->
       <!--<a href="/gallery">Gallery</a>-->
-      <a href="/about.php">About</a>
-      <a href="/contact_marrs.php">Contact</a>
+      <a href="https://marrs.in/about.php">About</a>
+      <a href="https://marrs.in/contact_marrs.php">Contact</a>
       <!--<span class="divider">|</span>-->
       <!--<a href="/terms_conditions">Terms & Conditions</a>-->
       <!--<a href="/privacy">Privacy Policy</a>-->

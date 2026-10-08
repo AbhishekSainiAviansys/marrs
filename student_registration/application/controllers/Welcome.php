@@ -1975,7 +1975,7 @@ class Welcome extends CI_Controller {
                 
         //         if($code=='SCHOOL' or $code=='school'){
         //             //echo 'ok';die;
-                    redirect('https://marrs.in/signin?tab=signin/');
+                    redirect('https://marrsdev.marrs.in/signin?tab=signin/');
                     
                 // }else{
                 //     if($code!=''){
@@ -2348,31 +2348,24 @@ class Welcome extends CI_Controller {
 	   //  $this->load->view('/signin',$data);   
 	    }
 	    
+	    
 	    public function loginDasboard()
         { 
             
             $code = trim($this->input->post('code'));
-            $password = trim($this->input->post('password'));
-        
-            // print_r($_POST);die;
+            $password = $this->input->post('password');
             
-        
+            // echo $code;die;
         
             if (empty($code)) {
                 $this->session->set_flashdata('schoolerror', 'Enter Id.');
-                redirect('https://marrs.in/');
+                redirect('https://marrsdev.marrs.in/');
                 return;
             }
-            if (empty($password)) {
-                $this->session->set_flashdata('schoolerror', 'Enter Password.');
-                redirect('https://marrs.in/');
-                return;
-            }
-            
         
             // ===== STATIC CODES =====
             if (strtolower($code) == 'school') {
-                redirect('https://marrs.in/school_login/');
+                redirect('https://marrsdev.marrs.in/school_login/');
             }
         
             if ($code == 'Aviansys@payments') {
@@ -2418,12 +2411,12 @@ class Welcome extends CI_Controller {
         
             if (!empty($marrsacess_code)) {
                 $this->session->set_userdata('school_code', $code);
-                redirect('https://marrs.in/student_registration/welcome/scanner/' . $code);
+                redirect('https://marrsdev.marrs.in/student_registration/welcome/scanner/' . $code);
             }
         
             if (!empty($marrsacess_code_mid)) {
                 $this->session->set_userdata('access_code', $code);
-                redirect('https://marrs.in/student_registration/welcome/scanner1/' . $code);
+                redirect('https://marrsdev.marrs.in/student_registration/welcome/scanner1/' . $code);
             }
         
             if (!empty($zoomacess_code)) {
@@ -2431,26 +2424,26 @@ class Welcome extends CI_Controller {
             }
         
             if (!empty($admin_code)) {
-                redirect('https://marrs.in/admin/manage/login');
+                redirect('https://marrsdev.marrs.in/admin/manage/login');
             }
         
             if (!empty($franchise_code)) {
-                redirect('https://marrs.in/franchiselogin/franchise/index');
+                redirect('https://marrsdev.marrs.in/franchiselogin/franchise/index');
             }
         
             if (!empty($lunar_cin) && !empty($password)) {
                 $this->session->set_userdata('cin', $lunar_cin['cin']);
-                redirect('https://marrs.in/lunar');
+                redirect('https://marrsdev.marrs.in/lunar');
             }
         
             if (!empty($zoom_cin) && !empty($password)) {
                 $this->session->set_userdata('cin', $zoom_cin['cin']);
-                redirect('https://marrs.in/zoomzoom');
+                redirect('https://marrsdev.marrs.in/zoomzoom');
             }
         
             if (!empty($spark_cin) && !empty($password)) {
                 $this->session->set_userdata('cin', $spark_cin['cin']);
-                redirect('https://marrs.in/spark');
+                redirect('https://marrsdev.marrs.in/spark');
             }
         
             if (!empty($result_cin) && !empty($password)) {
@@ -2460,17 +2453,17 @@ class Welcome extends CI_Controller {
         
             if (!empty($lunar_schedule_cin)) {
                 $this->session->set_userdata('registration_code', $code);
-                redirect('https://marrs.in/lunar/welcome/current_registration');
+                redirect('https://marrsdev.marrs.in/lunar/welcome/current_registration');
             }
         
             if (!empty($zoomzoom_schedule_cin)) {
                 $this->session->set_userdata('registration_code', $code);
-                redirect('https://marrs.in/zoomzoom/welcome/current_registration');
+                redirect('https://marrsdev.marrs.in/zoomzoom/welcome/current_registration');
             }
         
             if (!empty($spark_schedule_cin)) {
                 $this->session->set_userdata('registration_code', $code);
-                redirect('https://marrs.in/spark/welcome/current_registration');
+                redirect('https://marrsdev.marrs.in/spark/welcome/current_registration');
             }
         
             if (!empty($result_prid) && !empty($password)) {
@@ -2487,14 +2480,14 @@ class Welcome extends CI_Controller {
             $_SESSION['email'] = $code;
             redirect('welcome/current_registration');
         }
-
+        
 
 	    public function get_access_code($id='')
 	    {
-	    $id = $_POST['school_id'];
-		 //print_r($id);exit; 
-		 $sc = $this->db->get_where('schools',array('school_id'=>$id))->row(); 
-          print_r($sc->school_code); 
+	        $id = $_POST['school_id'];
+		    //print_r($id);exit; 
+		    $sc = $this->db->get_where('schools',array('school_id'=>$id))->row(); 
+            print_r($sc->school_code); 
 		 
 	    }  
 	
@@ -6108,24 +6101,24 @@ class Welcome extends CI_Controller {
     	
         public function wenew_registration($id='')
         {
-    	$product=$this->input->post('product_name');
-    	
-    	$amount=$this->input->post('amount');
-    	$prid=$this->input->post('prid');
-    	$name=$this->input->post('name');
-    	$class=$this->input->post('class');
-    	$array = array('prid'=>$prid,'product'=>$product,'amount'=>$amount,'name'=>$name,'class'=>$class);
-    	$res = $this->db->get_where('cart_prid',array('prid'=>$prid))->row();
-    	if(empty($res)){
-    	$insert = $this->db->insert('cart_prid',$array);
-       return ;
-       }else{
-          echo ''; 
+        	$product=$this->input->post('product_name');
+        	
+        	$amount=$this->input->post('amount');
+        	$prid=$this->input->post('prid');
+        	$name=$this->input->post('name');
+        	$class=$this->input->post('class');
+        	$array = array('prid'=>$prid,'product'=>$product,'amount'=>$amount,'name'=>$name,'class'=>$class);
+        	$res = $this->db->get_where('cart_prid',array('prid'=>$prid))->row();
+        	if(empty($res)){
+        	$insert = $this->db->insert('cart_prid',$array);
+           return ;
+           }else{
+              echo ''; 
+               
+           }
            
-       }
-       
-    	
-      } 	
+        	
+          } 	
   
         public function delete_registration($id='')
         {
@@ -6302,116 +6295,6 @@ class Welcome extends CI_Controller {
             
         
     }
-    
-    public function ajax_add_school()
-{
-    if (!$this->input->is_ajax_request()) {
-        show_404();
-        return;
-    }
- 
-    // Basic abuse guard: ek session se max 5 manual schools
-    $count = (int) $this->session->userdata('manual_school_adds');
-    if ($count >= 5) {
-        return $this->_json(['status' => 'error', 'message' => 'Too many schools added. Please contact support.']);
-    }
- 
-    $clean = function ($k) {
-        return trim(preg_replace('/\s+/', ' ', (string) $this->input->post($k, true)));
-    };
- 
-    $name      = $clean('school_name');
-    $address   = $clean('school_address');
-    $country   = $clean('country');
-    $state     = $clean('state');
-    $city      = $clean('city');          // district name (open_school_form ki tarah)
-    $area_code = $clean('area_code');
-    $pin       = $clean('pin');
-    $mobile    = $clean('school_mobile');
-    $principal = $clean('school_principal_name');
-    $p_email   = $clean('principal_email');
-    $syllabus  = $clean('syllabus');
- 
-    // ---- validation ----
-    $boards = ['CBSE', 'ICSE', 'State Board', 'IB', 'IGCSE', 'Other'];
- 
-    if (mb_strlen($name) < 3 || mb_strlen($name) > 150) {
-        return $this->_json(['status' => 'error', 'message' => 'School name must be 3-150 characters.']);
-    }
-    foreach (['address' => $address, 'country' => $country, 'state' => $state, 'district' => $city,
-              'area' => $area_code, 'principal name' => $principal] as $label => $val) {
-        if ($val === '') {
-            return $this->_json(['status' => 'error', 'message' => 'Please fill ' . $label . '.']);
-        }
-    }
-    if (!preg_match('/^\d{10,15}$/', $mobile)) {
-        return $this->_json(['status' => 'error', 'message' => 'Enter a valid school mobile number.']);
-    }
-    if ($p_email !== '' && !filter_var($p_email, FILTER_VALIDATE_EMAIL)) {
-        return $this->_json(['status' => 'error', 'message' => 'Enter a valid principal email.']);
-    }
-    if (!in_array($syllabus, $boards, true)) {
-        return $this->_json(['status' => 'error', 'message' => 'Please select a valid syllabus.']);
-    }
- 
-    // ---- duplicate check (same name + district) ----
-    $existing = $this->db->query(
-        'SELECT id, school_name FROM school_new
-          WHERE LOWER(school_name) = ? AND LOWER(city) = ? LIMIT 1',
-        [mb_strtolower($name), mb_strtolower($city)]
-    )->row_array();
- 
-    if ($existing) {
-        return $this->_json([
-            'status'      => 'success',
-            'existing'    => true,
-            'school_id'   => (int) $existing['id'],
-            'school_name' => $existing['school_name'],
-        ]);
-    }
- 
-    // ---- insert ----
-    // Column names open_school_form / welcome/search ke keys se liye hain.
-    $insert = [
-        'school_name'           => $name,
-        'school_address'        => $address,
-        'country'               => $country,
-        'state'                 => $state,
-        'city'                  => $city,
-        'district'              => $city,       // form mein "City" input = district select ki value
-        'area_code'             => $area_code,  // CIN generation ke liye zaroori
-        'pin'                   => $pin,
-        'school_mobile'         => $mobile,
-        'school_principal_name' => $principal,
-        'principal_email'       => $p_email,
-        'syllabus'              => $syllabus,   // agar column "school_board" hai to key badal do
-    ];
- 
-    // TODO: school_code — Welcome::save() jo logic use karta hai (auto-generate) wahi yahan lagao.
-    // $insert['school_code'] = ...;
- 
-    // Admin review ke liye flag (sirf agar column ho)
-    if ($this->db->field_exists('is_manual', 'school_new')) {
-        $insert['is_manual'] = 1;
-    }
-    if ($this->db->field_exists('created_at', 'school_new')) {
-        $insert['created_at'] = date('Y-m-d H:i:s');
-    }
- 
-    if (!$this->db->insert('school_new', $insert)) {
-        log_message('error', 'ajax_add_school insert failed: ' . json_encode($this->db->error()));
-        return $this->_json(['status' => 'error', 'message' => 'Could not add school. Please try again.']);
-    }
- 
-    $this->session->set_userdata('manual_school_adds', $count + 1);
- 
-    return $this->_json([
-        'status'      => 'success',
-        'existing'    => false,
-        'school_id'   => (int) $this->db->insert_id(),
-        'school_name' => $name,
-    ]);
-}
   
 
 }

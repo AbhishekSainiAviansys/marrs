@@ -53,7 +53,6 @@
  *
  * NOTE: If you change these, also change the error_reporting() code below
  */
-require_once __DIR__ . '/../env_loader.php';
 	define('ENVIRONMENT', isset($_SERVER['CI_ENV']) ? $_SERVER['CI_ENV'] : 'development');
 
 /*

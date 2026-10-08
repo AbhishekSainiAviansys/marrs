@@ -14,7 +14,7 @@
 | path to your installation.
 |
 */
-$config['base_url'] = (getenv('APP_BASE_URL') !== FALSE) ? rtrim(getenv('APP_BASE_URL'), '/') . '/admin/' : 'https://marrs.in/admin/';
+$config['base_url']	= 'https://marrsdev.marrs.in/admin/';
 
 
 /*

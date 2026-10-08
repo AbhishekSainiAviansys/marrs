@@ -248,27 +248,6 @@ public function export_cin_all()
     $data['periodload'] = $this->db->where('period_id >', 13)->get('period')->result_array();
     $data['subject']    = $this->db->get('lunar_subjects')->result_array();
     // $data['classload'] bhi agar pehle yahan set hota tha to waise hi rakho
-    $data['areas'] = $this->db->distinct()->select('area_code')
-        ->where('area_code IS NOT NULL', null, false)
-        ->where('area_code !=', '')
-        ->order_by('area_code')
-        ->get('school_new')->result_array();
-
-    // Franchise: aliased to id / first_name / last_name so the view works as-is
-    $data['franchises'] = $this->db
-        ->select("franchise_id AS id, franchise_first_name AS first_name,
-                  CONCAT(franchise_last_name, ' (', company_name, ')') AS last_name", false)
-        ->where('franchise_status', 'Active')
-        ->where('status', 'Active')
-        ->order_by('franchise_first_name')
-        ->get('franchise')->result_array();
-
-    // Affiliate = associates table
-    $data['affiliates'] = $this->db
-        ->select('associate_id AS id, first_name, last_name')
-        ->where('status', 'Active')
-        ->order_by('first_name')
-        ->get('associates')->result_array();
 
     $this->load->view('export_cin_lunar_all', $data);
 }

@@ -74,8 +74,8 @@ defined('FOPEN_READ_WRITE_CREATE_STRICT')       OR define('FOPEN_READ_WRITE_CREA
 |
 */
 
-define('RAZOR_KEY_ID', (getenv('RAZOR_KEY_ID') !== FALSE ? getenv('RAZOR_KEY_ID') : ''));
-define('RAZOR_KEY_SECRET', (getenv('RAZOR_KEY_SECRET') !== FALSE ? getenv('RAZOR_KEY_SECRET') : ''));
+define('RAZOR_KEY_ID', 'rzp_live_UMziCF38129HCi');
+define('RAZOR_KEY_SECRET', 'nMj5U0daHbD6KxINizRDg8m6');
 
 defined('EXIT_SUCCESS')        OR define('EXIT_SUCCESS', 0); // no errors
 defined('EXIT_ERROR')          OR define('EXIT_ERROR', 1); // generic error

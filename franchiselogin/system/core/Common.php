@@ -478,13 +478,6 @@ if ( ! function_exists('_exception_handler'))
 			return;
 		}
 
-		// PHP 8 deprecations must not re-enter the logger while Log.php
-		// itself is still being compiled (causes class redeclare fatals).
-		if ($severity == E_DEPRECATED OR $severity == E_USER_DEPRECATED)
-		{
-			return;
-		}
-
 		$_error =& load_class('Exceptions', 'core');
 
 		// Should we display the error? We'll get the current error_reporting

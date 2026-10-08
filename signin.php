@@ -348,7 +348,7 @@ $next = $year + 1;
         <button class="method-btn active"        onclick="setMethod(this,'Enter your CIN','text')">CIN</button>
         <!--<button class="method-btn " onclick="setMethod(this,'Enter your Email ID','email')">Email ID</button>-->
       </div>
-      <form method="post" action="/student_registration/loginDashboard">
+      <form method="post" action="<?php echo 'https://marrsdev.marrs.in/student_registration/loginDashboard';?>">
         <div class="input-group">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
           <input class="input-field" id="signinCodeInput" type="text" name="code" placeholder="Enter your CIN" autocomplete="off"/>
@@ -363,7 +363,7 @@ $next = $year + 1;
           Sign In <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </button>
       </form>
-      <a href="/student_registration/search_cin" class="search-cin-btn">
+      <a href="<?php echo 'https://marrs.in/student_registration/search_cin';?>" class="search-cin-btn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
         Search Your CIN
       </a>
@@ -384,7 +384,7 @@ $next = $year + 1;
 
   <!-- ACCESS CODE -->
   <div id="regAccessCode">
-    <form method="post" action="/student_registration/welcome/current_registration">
+    <form method="post" action="<?php echo 'https://marrsdev.marrs.in/student_registration/welcome/current_registration';?>">
 
       <div class="input-group">
         <!-- LOCK ICON -->
@@ -409,7 +409,7 @@ $next = $year + 1;
 
   <!-- EMAIL REGISTRATION -->
   <div id="regEmail" style="display:none;">
-    <form method="post" action="/student_registration/welcome/current_registration">
+    <form method="post" action="<?php echo 'https://marrsdev.marrs.in/student_registration/welcome/current_registration';?>">
 
       <div class="input-group">
         <!-- EMAIL ICON -->
@@ -480,3 +480,4 @@ function togglePwd(id) {
   };
 </script>
 <?php include('footertest.php');?>
+

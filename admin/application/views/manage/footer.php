@@ -54,8 +54,8 @@
 			var BASE_URL='<?php echo BASE_URL;?>';
 			
 			var COMMON_VIEW_STYLE='<?php echo COMMON_VIEW_STYLE;?>';
-			var COMMON_COMMON_VIEW_SCRIPT='<?php echo COMMON_VIEW_SCRIPT;?>';
-			var COMMON_BASE_URL='<?php echo BASE_URL;?>';
+			var COMMON_COMMON_VIEW_SCRIPT='<?php echo COMMON_COMMON_VIEW_SCRIPT;?>';
+			var COMMON_BASE_URL='<?php echo COMMON_BASE_URL;?>';
 			
 		</script>
 

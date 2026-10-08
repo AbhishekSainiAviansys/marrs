@@ -21,8 +21,7 @@ date_default_timezone_set('Asia/Kolkata');
  * NOTE: If you change these, also change the error_reporting() code below
  *
  */
-require_once __DIR__ . '/../env_loader.php';
-	define('ENVIRONMENT', isset($_SERVER['CI_ENV']) ? $_SERVER['CI_ENV'] : 'development');
+	define('ENVIRONMENT', 'development');
 /*
  *---------------------------------------------------------------
  * ERROR REPORTING
@@ -38,7 +37,7 @@ if (defined('ENVIRONMENT'))
 	{
 		case 'development':
 			//error_reporting(E_ALL);
-			error_reporting(E_ALL ^ (E_NOTICE | E_WARNING | E_DEPRECATED));
+			error_reporting(E_ALL ^ (E_NOTICE | E_WARNING));
 		break;
 	
 		case 'testing':

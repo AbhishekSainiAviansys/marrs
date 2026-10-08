@@ -22,7 +22,6 @@
 
             <!-- ============ FILTERS ============ -->
             <table cellpadding="5px">
-                <!-- Row 1 -->
                 <tr>
                     <!-- Period -->
                     <td>Period:<br />
@@ -73,51 +72,6 @@
                                 <option value="<?php echo $periodval['class_name']; ?>"
                                     <?php if (isset($result['class']) && $result['class'] == $periodval['class_name']) echo 'selected'; ?>>
                                     <?php echo $periodval['class_name']; ?>
-                                </option>
-                            <?php } ?>
-                        </select>
-                    </td>
-                </tr>
-
-                <!-- Row 2 -->
-                <tr>
-                    <!-- Area -->
-                    <!--<td>Area:<br />-->
-                    <!--    <select name="area" style="width:200px;">-->
-                    <!--        <option value="All"-->
-                    <!--            <?php if (!isset($result['area']) || $result['area'] == 'All') echo 'selected'; ?>>All Areas</option>-->
-                    <!--        <?php foreach ($areas as $a) { ?>-->
-                    <!--            <option value="<?php echo htmlspecialchars($a['area_code']); ?>"-->
-                    <!--                <?php if (isset($result['area']) && $result['area'] == $a['area_code']) echo 'selected'; ?>>-->
-                    <!--                <?php echo htmlspecialchars($a['area_code']); ?>-->
-                    <!--            </option>-->
-                    <!--        <?php } ?>-->
-                    <!--    </select>-->
-                    <!--</td>-->
-
-                    <!-- Franchise -->
-                    <td>Franchise:<br />
-                        <select name="franchise" style="width:200px;">
-                            <option value="All"
-                                <?php if (!isset($result['franchise']) || $result['franchise'] == 'All') echo 'selected'; ?>>All Franchises</option>
-                            <?php foreach ($franchises as $f) { ?>
-                                <option value="<?php echo $f['id']; ?>"
-                                    <?php if (isset($result['franchise']) && $result['franchise'] == $f['id']) echo 'selected'; ?>>
-                                    <?php echo htmlspecialchars(trim($f['first_name'] . ' ' . $f['last_name'])); ?>
-                                </option>
-                            <?php } ?>
-                        </select>
-                    </td>
-
-                    <!-- Affiliate -->
-                    <td>Affiliate:<br />
-                        <select name="affiliate" style="width:200px;">
-                            <option value="All"
-                                <?php if (!isset($result['affiliate']) || $result['affiliate'] == 'All') echo 'selected'; ?>>All Affiliates</option>
-                            <?php foreach ($affiliates as $f) { ?>
-                                <option value="<?php echo $f['id']; ?>"
-                                    <?php if (isset($result['affiliate']) && $result['affiliate'] == $f['id']) echo 'selected'; ?>>
-                                    <?php echo htmlspecialchars(trim($f['first_name'] . ' ' . $f['last_name'])); ?>
                                 </option>
                             <?php } ?>
                         </select>
@@ -226,7 +180,7 @@ $(document).on('click', '.btn-delete-cin', function () {
     var btn = $(this);
     var cin = btn.data('cin');
 
-    if (!confirm('CIN ' + cin + ' are you sure to delete? .')) {
+    if (!confirm('CIN ' + cin + ' delete karna hai? Ye wapas nahi aayega.')) {
         return;
     }
 
