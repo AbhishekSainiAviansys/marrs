@@ -1,140 +1,57 @@
 <head>
-  
-  <!--<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">-->
-  <!--<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>-->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
 <style>
- #contian{
-     background: linear-gradient(to bottom, rgba(10,62,110,1) 0%, rgba(10,61,108,1) 50%, rgba(3,51,91,1) 51%, rgba(3,50,89,1) 100%);
-     color:#fff;
- }
- #navvvv{
-    padding-top:10px;
-    padding-bottom:10px;
- }
-    #navvvv a{
-        font-size:18px;
-        font-weight:600;
-        text-align:center;
-        color:#fff;
-    }
-    #coll:hover{
-        /*background-color:#FFCC00;*/
-        text-decoration:none;
-    }
-    .navbar-nav>li>a {
-  
-        padding-left: 180px;
-    font-size: 20px;
-    padding-right: 160px;
-        padding-top: 18px;
-    padding-bottom: 18px;
-        /*color: #fff;*/
-        color: white;
-}
+  .lunar-navbar {
+    background: linear-gradient(to bottom, rgba(10, 62, 110, 1) 0%, rgba(10, 61, 108, 1) 50%, rgba(3, 51, 91, 1) 51%, rgba(3, 50, 89, 1) 100%);
+  }
 
-.dropdown-menu>li>a {
-    
-    padding: 6px 60px;
-  
-}
+  .lunar-navbar .nav-link {
+    color: #fff;
+    font-size: 18px;
+    font-weight: 600;
+    padding: 18px;
+  }
 
+  .lunar-navbar .nav-link:hover,
+  .lunar-navbar .nav-link:focus {
+    background-color: rgba(255, 255, 255, 0.18);
+    color: #fff;
+  }
 
-.nav>li>a:focus, .nav>li>a:hover {
-    text-decoration: none;
-    background-color: #ccc6c6;
-    color: white;
-}
-.navbar-toggle .icon-bar {
-  color: white;
-    background: #fff;
-}
-
-.navbar-toggle {
-    position: relative;
-    float: right;
-    padding: 9px 10px;
-    margin-top: 8px;
-    margin-right: 15px;
-    margin-bottom: 8px;
-    background-color: #2c4e48e6;
-    background-image: none;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    color: white;
-}
-.dropdown a{
-    color:white;
-}
-/*@media (min-width: 768px){*/
-/*.container-fluid>.navbar-collapse, .container-fluid>.navbar-header, .container>.navbar-collapse, .container>.navbar-header {*/
-/*    margin-right: -10px !important;*/
-/*    margin-left: -30px !important;*/
-/*}*/
-   
-    
-    
-/*}*/
-/*@media (min-width: 400px){*/
-/*   .nav>li {*/
-/*    position: relative;*/
-/*    display: block;*/
-    /*background: #337ab7;*/
-/*}  */
-    
-/*}  */
-
-
+  .lunar-navbar .dropdown-item {
+    color: #ff9933;
+  }
 </style>
 </head>
 <body>
 
-
-
-
-
-<nav class="">
-  <div class="container-fluid" style=" background: linear-gradient(to bottom, rgba(10,62,110,1) 0%, rgba(10,61,108,1) 50%, rgba(3,51,91,1) 51%, rgba(3,50,89,1) 100%);color:white;">
-    <!-- Brand and toggle get grouped for better mobile display -->
-    <div class="navbar-header">
-      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
-        <span class="sr-only">Toggle navigation</span>
-        <span class="icon-bar"></span>
-        <span class="icon-bar"></span>
-        <span class="icon-bar"></span>
-      </button>
-      <a class="navbar-brand" href="#"></a>
-    </div>
-
-    <!-- Collect the nav links, forms, and other content for toggling -->
-    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1" id='told'>
-     
-     
-      <ul class="nav navbar-nav navbar-right" >
-           <li><a href="https://marrs.in/">Home</a></li>
-        <!--<li><a href="https://marrs.in/student_registration/welcome">Student Enroll</a></li>-->
-        <!--<li><a href="https://marrs.in/student_registration/welcome/student">Learning programs</a></li> -->
-        <li class="dropdown">
-          <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">Learning programs<span class="caret"></span></a>
-          <ul class="dropdown-menu" role="menu" style='color:#ff9933;'>
-            <li><a href="https://marrs.in/all_programs.php" style='color:#ff9933;'>All Programs</a></li>
-            <li class="divider"></li>
-            <li><a href="https://marrs.in/kinder.php" style='color:#ff9933;'>Kinder Garten Programs</a></li>
-            <li class="divider"></li>
-            <li><a href="https://marrs.in/1_8.php" style='color:#ff9933;'>Class 1-8 Programs</a></li>
-            <li class="divider"></li>
-            <li><a href="https://marrs.in/8_12.php" style='color:#ff9933;'>Class 8-12 Programs</a></li>
-            
+<nav class="navbar navbar-expand-lg navbar-dark lunar-navbar">
+  <div class="container-fluid">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#lunarNavbar" aria-controls="lunarNavbar" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="lunarNavbar">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Learning programs</a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="/all_programs.php">All Programs</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/kinder.php">Kinder Garten Programs</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/1_8.php">Class 1-8 Programs</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/8_12.php">Class 8-12 Programs</a></li>
           </ul>
         </li>
-       
-            <li><a href="https://marrs.in/">Logout</a></li>
-          
+        <li class="nav-item"><a class="nav-link" href="/">Logout</a></li>
       </ul>
     </div>
   </div>
 </nav>
 
-<!--<li><a href="https://marrs.in/student_registration/Log/"style='color:#ff9933;'>*</a></li>-->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>

@@ -12,11 +12,11 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *     environment variables in production if possible instead of
  *     hardcoding below.
  */
-$config['razorpay_key_id']     = 'rzp_live_kG7f8nF6sKGPhx';
-$config['razorpay_key_secret'] = '68nusLbguizulOSBn47VpfmS';
+$config['razorpay_key_id']     = (getenv('RAZOR_KEY_ID') !== FALSE ? getenv('RAZOR_KEY_ID') : '');
+$config['razorpay_key_secret'] = (getenv('RAZOR_KEY_SECRET') !== FALSE ? getenv('RAZOR_KEY_SECRET') : '');
 
 // Optional: only needed if you set up a Razorpay webhook
 // (recommended — see README for why).
-$config['razorpay_webhook_secret'] = 'REPLACE_WITH_YOUR_WEBHOOK_SECRET';
-define('RAZOR_KEY_ID', 'rzp_live_kG7f8nF6sKGPhx');
-define('RAZOR_KEY_SECRET', '68nusLbguizulOSBn47VpfmS');
+$config['razorpay_webhook_secret'] = (getenv('RAZOR_WEBHOOK_SECRET') !== FALSE ? getenv('RAZOR_WEBHOOK_SECRET') : '');
+define('RAZOR_KEY_ID', (getenv('RAZOR_KEY_ID') !== FALSE ? getenv('RAZOR_KEY_ID') : ''));
+define('RAZOR_KEY_SECRET', (getenv('RAZOR_KEY_SECRET') !== FALSE ? getenv('RAZOR_KEY_SECRET') : ''));

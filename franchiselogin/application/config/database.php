@@ -52,7 +52,7 @@ $db['default']['hostname'] = (getenv('DB_HOST') !== FALSE) ? getenv('DB_HOST') :
 
 $db['default']['username'] = (getenv('DB_USERNAME') !== FALSE) ? getenv('DB_USERNAME') : 'marrscor_marrs'; 
 
-$db['default']['password'] = (getenv('DB_PASSWORD') !== FALSE) ? getenv('DB_PASSWORD') : '8jN}g7XGRczj'; 
+$db['default']['password'] = (getenv('DB_PASSWORD') !== FALSE) ? getenv('DB_PASSWORD') : '';
 
 $db['default']['database'] = (getenv('DB_DATABASE') !== FALSE) ? getenv('DB_DATABASE') : 'marrscor_marrs'; 
 

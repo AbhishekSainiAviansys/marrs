@@ -1,6 +1,7 @@
 # ---- Secrets: never commit (use .env.example as the template) ----
-.env.development
-.env.production
+.env.*
+!.env.example
+keys/private.pem
 
 # ---- Runtime / logs ----
 error_log
@@ -21,8 +22,16 @@ mock_papers/
 zoomzoom_free_material/
 zoomzoom_paid_material/
 uploads/
-newassets/
-images/
+newassets/**/*.mp4
+**/images/evidence/
+**/images/**/*.docx
+**/images/**/*.msg
+**/images/**/*.php
+**/images/**/*.zip
+**/user_guide/images/
+**/user_guide/_static/images/
+**/dompdf/user_guide/_static/images/
+**/tcpdf/examples/images/
 
 # ---- OS / editor junk ----
 Thumbs.db

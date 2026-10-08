@@ -28,7 +28,12 @@ if (!defined('BASEPATH'))
     public function logout() {
         $this->session->unset_userdata('user_id');
         $this->session->unset_userdata('username');
-        redirect('https://marrs.in/', 'refresh');
+        $siteUrl = getenv('APP_BASE_URL');
+        if ($siteUrl === FALSE || $siteUrl === '')
+        {
+            $siteUrl = 'https://marrs.in';
+        }
+        redirect(rtrim($siteUrl, '/') . '/', 'refresh');
     }
     
     public function resetpassword()
@@ -78,5 +83,4 @@ if (!defined('BASEPATH'))
     
     
 }
-
 

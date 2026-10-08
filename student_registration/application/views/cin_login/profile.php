@@ -1574,7 +1574,7 @@ if ($query5->num_rows() > 0) {
                              </div>
                              <div class="col-lg-6">
                             <!-- Glowing CTA Button -->
-                            <a href="https://marrs.in/lunar/Welcome/landing/L257096" class="btn-sm glow-btn mt-4">
+                            <a href="/lunar/Welcome/landing/L257096" class="btn-sm glow-btn mt-4">
                                 <span class="btn-content">
                                     <i class="fas fa-rocket btn-icon"></i>
                                     <span>Register For Lunar Now!</span>
