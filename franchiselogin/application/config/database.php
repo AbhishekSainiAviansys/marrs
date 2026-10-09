@@ -48,13 +48,15 @@
 $active_group = 'default';
 $active_record = TRUE;
 
-$db['default']['hostname'] = 'localhost';
+require_once dirname(dirname(APPPATH)) . '/env_loader.php';
 
-$db['default']['username'] = 'marrscor_marrs'; 
+$db['default']['hostname'] = marrs_env('DB_HOST', 'localhost');
 
-$db['default']['password'] = '8jN}g7XGRczj'; 
+$db['default']['username'] = marrs_env('DB_USERNAME', 'marrscor_marrs');
 
-$db['default']['database'] = 'marrscor_marrs'; 
+$db['default']['password'] = marrs_env('DB_PASSWORD', '8jN}g7XGRczj');
+
+$db['default']['database'] = marrs_env('DB_DATABASE', 'marrscor_marrs');
 
 
 /*$db['default']['hostname'] = 'localhost';

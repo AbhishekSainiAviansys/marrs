@@ -14,7 +14,8 @@
 | path to your installation.
 |
 */
-$config['base_url']	= 'https://marrsdev.marrs.in/franchiselogin/';
+require_once dirname(dirname(APPPATH)) . '/env_loader.php';
+$config['base_url'] = marrs_is_local() ? 'http://localhost/franchiselogin/' : 'https://marrsdev.marrs.in/franchiselogin/';
 
 
 /*

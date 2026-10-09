@@ -23,7 +23,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 | a PHP script and you can easily do that on your own.
 |
 */
-$config['base_url'] = 'https://marrsdev.marrs.in/zoomzoom/';
+require_once dirname(dirname(APPPATH)) . '/env_loader.php';
+$config['base_url'] = marrs_is_local() ? 'http://localhost/zoomzoom/' : 'https://marrsdev.marrs.in/zoomzoom/';
 
 /*
 |--------------------------------------------------------------------------

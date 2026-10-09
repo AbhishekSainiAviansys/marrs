@@ -2,6 +2,7 @@
 
 defined('BASEPATH') OR exit('No direct script access allowed');
 require_once(APPPATH."libraries/razorpay/razorpay-php/Razorpay.php");
+require_once dirname(dirname(APPPATH)) . '/env_loader.php';
 
 use Razorpay\Api\Api;
 use Razorpay\Api\Errors\SignatureVerificationError;
@@ -1975,7 +1976,7 @@ class Welcome extends CI_Controller {
                 
         //         if($code=='SCHOOL' or $code=='school'){
         //             //echo 'ok';die;
-                    redirect('https://marrsdev.marrs.in/signin?tab=signin/');
+                    redirect(marrs_site_url() . '/signin?tab=signin/');
                     
                 // }else{
                 //     if($code!=''){
@@ -2359,13 +2360,13 @@ class Welcome extends CI_Controller {
         
             if (empty($code)) {
                 $this->session->set_flashdata('schoolerror', 'Enter Id.');
-                redirect('https://marrsdev.marrs.in/');
+                redirect(marrs_site_url() . '/');
                 return;
             }
         
             // ===== STATIC CODES =====
             if (strtolower($code) == 'school') {
-                redirect('https://marrsdev.marrs.in/school_login/');
+                redirect(marrs_site_url() . '/school_login/');
             }
         
             if ($code == 'Aviansys@payments') {
@@ -2407,16 +2408,41 @@ class Welcome extends CI_Controller {
                 }
             }
         
+            // ===== SAVE FCM TOKEN ON CIN LOGIN (notifications) =====
+            if (!empty($cin['cin']) && !empty($password)) {
+                $fcm_token = trim((string) $this->input->post('fcm_token'));
+                $old_fcm_token = isset($cin['fcm_token']) ? trim((string) $cin['fcm_token']) : '';
+
+                // Update cin_list.fcm_token only when a new, different token came in
+                if ($fcm_token !== '' && $fcm_token !== $old_fcm_token) {
+                    $this->db->where('cin', $cin['cin']);
+                    $this->db->update('cin_list', array('fcm_token' => $fcm_token));
+                }
+
+                // TEMPORARY: test notification on login - REMOVE after FCM testing is done
+                if ($fcm_token !== '') {
+                    $this->load->library('fcm_push');
+                    $test_result = $this->fcm_push->send_to_token(
+                        $fcm_token,
+                        'MaRRS Test Notification',
+                        'Test notification for CIN ' . $cin['cin'],
+                        array('cin' => $cin['cin'])
+                    );
+                    log_message('info', 'FCM test push [' . $cin['cin'] . '] method=' . $test_result['method']
+                        . ' http=' . $test_result['status'] . ' response=' . $test_result['response']);
+                }
+            }
+
             // ===== REDIRECT LOGIC =====
         
             if (!empty($marrsacess_code)) {
                 $this->session->set_userdata('school_code', $code);
-                redirect('https://marrsdev.marrs.in/student_registration/welcome/scanner/' . $code);
+                redirect(marrs_site_url() . '/student_registration/welcome/scanner/' . $code);
             }
         
             if (!empty($marrsacess_code_mid)) {
                 $this->session->set_userdata('access_code', $code);
-                redirect('https://marrsdev.marrs.in/student_registration/welcome/scanner1/' . $code);
+                redirect(marrs_site_url() . '/student_registration/welcome/scanner1/' . $code);
             }
         
             if (!empty($zoomacess_code)) {
@@ -2424,26 +2450,26 @@ class Welcome extends CI_Controller {
             }
         
             if (!empty($admin_code)) {
-                redirect('https://marrsdev.marrs.in/admin/manage/login');
+                redirect(marrs_site_url() . '/admin/manage/login');
             }
         
             if (!empty($franchise_code)) {
-                redirect('https://marrsdev.marrs.in/franchiselogin/franchise/index');
+                redirect(marrs_site_url() . '/franchiselogin/franchise/index');
             }
         
             if (!empty($lunar_cin) && !empty($password)) {
                 $this->session->set_userdata('cin', $lunar_cin['cin']);
-                redirect('https://marrsdev.marrs.in/lunar');
+                redirect(marrs_site_url() . '/lunar');
             }
         
             if (!empty($zoom_cin) && !empty($password)) {
                 $this->session->set_userdata('cin', $zoom_cin['cin']);
-                redirect('https://marrsdev.marrs.in/zoomzoom');
+                redirect(marrs_site_url() . '/zoomzoom');
             }
         
             if (!empty($spark_cin) && !empty($password)) {
                 $this->session->set_userdata('cin', $spark_cin['cin']);
-                redirect('https://marrsdev.marrs.in/spark');
+                redirect(marrs_site_url() . '/spark');
             }
         
             if (!empty($result_cin) && !empty($password)) {
@@ -2453,17 +2479,17 @@ class Welcome extends CI_Controller {
         
             if (!empty($lunar_schedule_cin)) {
                 $this->session->set_userdata('registration_code', $code);
-                redirect('https://marrsdev.marrs.in/lunar/welcome/current_registration');
+                redirect(marrs_site_url() . '/lunar/welcome/current_registration');
             }
         
             if (!empty($zoomzoom_schedule_cin)) {
                 $this->session->set_userdata('registration_code', $code);
-                redirect('https://marrsdev.marrs.in/zoomzoom/welcome/current_registration');
+                redirect(marrs_site_url() . '/zoomzoom/welcome/current_registration');
             }
         
             if (!empty($spark_schedule_cin)) {
                 $this->session->set_userdata('registration_code', $code);
-                redirect('https://marrsdev.marrs.in/spark/welcome/current_registration');
+                redirect(marrs_site_url() . '/spark/welcome/current_registration');
             }
         
             if (!empty($result_prid) && !empty($password)) {
@@ -2481,6 +2507,38 @@ class Welcome extends CI_Controller {
             redirect('welcome/current_registration');
         }
         
+
+	    // TEMPORARY: manual test push to the FCM token stored for a CIN.
+	    // Usage: /student_registration/welcome/test_push/25SBAA115084
+	    // NOTE: open endpoint - remove after FCM testing is complete.
+	    public function test_push($cin = '')
+	    {
+	        $cin = trim($cin);
+	        if ($cin === '') {
+	            $cin = trim((string) $this->input->get('cin'));
+	        }
+
+	        header('Content-Type: application/json');
+	        if ($cin === '') {
+	            echo json_encode(array('success' => FALSE, 'error' => 'No CIN given. Usage: welcome/test_push/<CIN>'));
+	            return;
+	        }
+
+	        $this->load->library('fcm_push');
+	        $row = $this->db->where('cin', $cin)->limit(1)->get('cin_list')->row_array();
+
+	        $result = $this->fcm_push->send_to_cin($cin, 'MaRRS Test Notification', 'Test notification for CIN ' . $cin, array('cin' => $cin));
+
+	        echo json_encode(array(
+	            'success'     => $result['success'],
+	            'cin'         => $cin,
+	            'fcm_token'   => (!empty($row['fcm_token']) ? substr($row['fcm_token'], 0, 20) . '...' : ''),
+	            'method'      => $result['method'],
+	            'http_status' => $result['status'],
+	            'response'    => $result['response'],
+	            'error'       => $this->fcm_push->get_last_error(),
+	        ));
+	    }
 
 	    public function get_access_code($id='')
 	    {

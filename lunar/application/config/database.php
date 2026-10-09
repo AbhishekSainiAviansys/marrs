@@ -73,12 +73,14 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 $active_group = 'default';
 $query_builder = TRUE;
 
+require_once dirname(dirname(APPPATH)) . '/env_loader.php';
+
 $db['default'] = array(
 	'dsn'	=> '',
-	'hostname' => 'localhost',
-	'username' => 'marrscor_marrs',
-	'password' => '8jN}g7XGRczj',
-	'database' => 'marrscor_marrs',
+	'hostname' => marrs_env('DB_HOST', 'localhost'),
+	'username' => marrs_env('DB_USERNAME', 'marrscor_marrs'),
+	'password' => marrs_env('DB_PASSWORD', '8jN}g7XGRczj'),
+	'database' => marrs_env('DB_DATABASE', 'marrscor_marrs'),
 	'dbdriver' => 'mysqli',
 	'dbprefix' => '',
 	'pconnect' => FALSE,

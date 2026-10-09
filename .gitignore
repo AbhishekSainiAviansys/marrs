@@ -3,6 +3,15 @@
 !.env.example
 keys/private.pem
 
+# ---- Local-only files (machine specific; never upload / never affect live) ----
+.env.local
+.env.*.local
+*.local.php
+db.local.php
+_local_*.php
+_fcm_*.php
+
+
 # ---- Runtime / logs ----
 error_log
 *.log

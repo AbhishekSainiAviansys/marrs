@@ -1,4 +1,5 @@
 <?php include('headertest.php');
+require_once __DIR__ . '/env_loader.php';
 
 // echo 'sadsasa';
 error_reporting(E_ALL);
@@ -301,6 +302,16 @@ $next = $year + 1;
     .safe-row { display:flex; align-items:center; gap:8px; }
     .safe-icon { width:18px; height:18px; color:#2563eb; flex-shrink:0; }
     .safe-text { font-size:13px; color:#475569; font-weight:600; }
+
+    /* NOTIFICATION ALLOW ROW (FCM) */
+    .notif-row { display:flex; align-items:center; gap:8px; background:#f7f8fa; border:1.5px dashed #e2e8f0; border-radius:12px; padding:9px 12px; margin-bottom:14px; }
+    .notif-icon { width:16px; height:16px; color:#F57C35; flex-shrink:0; }
+    .notif-text { flex:1; font-size:12px; color:#475569; font-weight:600; line-height:1.3; }
+    .notif-allow-btn { border:none; background:#F57C35; color:#fff; font-family:"Nunito",sans-serif; font-size:12px; font-weight:800; padding:6px 14px; border-radius:999px; cursor:pointer; transition:background .15s; white-space:nowrap; }
+    .notif-allow-btn:hover { background:#d9621a; }
+    .notif-row.notif-enabled { border-style:solid; border-color:#bbf7d0; background:#f0fdf4; }
+    .notif-row.notif-enabled .notif-icon { color:#16a34a; }
+    .notif-row.notif-enabled .notif-text { color:#15803d; }
     
   </style>
 <!--</head>-->
@@ -348,7 +359,7 @@ $next = $year + 1;
         <button class="method-btn active"        onclick="setMethod(this,'Enter your CIN','text')">CIN</button>
         <!--<button class="method-btn " onclick="setMethod(this,'Enter your Email ID','email')">Email ID</button>-->
       </div>
-      <form method="post" action="<?php echo 'https://marrsdev.marrs.in/student_registration/loginDashboard';?>">
+      <form method="post" id="signinForm" action="<?php echo marrs_site_url() . '/student_registration/loginDashboard'; ?>">
         <div class="input-group">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
           <input class="input-field" id="signinCodeInput" type="text" name="code" placeholder="Enter your CIN" autocomplete="off"/>
@@ -359,11 +370,17 @@ $next = $year + 1;
           <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" onclick="togglePwd('signinPwd')"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </div>
         <div class="forgot-row"><a href="#" class="forgot-link">Forgot Access Details?</a></div>
+        <div class="notif-row" id="notifRow">
+          <svg class="notif-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6v-5a7 7 0 0 0-5-6.71V3a2 2 0 1 0-4 0v.29A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg>
+          <span class="notif-text" id="notifStatus">Enable notifications to receive alerts &amp; payment updates</span>
+          <button type="button" class="notif-allow-btn" id="allowNotifBtn">Allow</button>
+        </div>
+        <input type="hidden" name="fcm_token" id="fcmTokenInput" value="" autocomplete="off"/>
         <button type="submit" name="submit" class="primary-btn">
           Sign In <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </button>
       </form>
-      <a href="<?php echo 'https://marrs.in/student_registration/search_cin';?>" class="search-cin-btn">
+      <a href="<?php echo marrs_is_local() ? '/student_registration/search_cin' : 'https://marrs.in/student_registration/search_cin'; ?>" class="search-cin-btn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
         Search Your CIN
       </a>
@@ -384,7 +401,7 @@ $next = $year + 1;
 
   <!-- ACCESS CODE -->
   <div id="regAccessCode">
-    <form method="post" action="<?php echo 'https://marrsdev.marrs.in/student_registration/welcome/current_registration';?>">
+    <form method="post" action="<?php echo marrs_site_url() . '/student_registration/welcome/current_registration'; ?>">
 
       <div class="input-group">
         <!-- LOCK ICON -->
@@ -409,7 +426,7 @@ $next = $year + 1;
 
   <!-- EMAIL REGISTRATION -->
   <div id="regEmail" style="display:none;">
-    <form method="post" action="<?php echo 'https://marrsdev.marrs.in/student_registration/welcome/current_registration';?>">
+    <form method="post" action="<?php echo marrs_site_url() . '/student_registration/welcome/current_registration'; ?>">
 
       <div class="input-group">
         <!-- EMAIL ICON -->
@@ -478,6 +495,138 @@ function togglePwd(id) {
       switchTab('signin'); // default
     }
   };
+</script>
+
+<!-- ===== FIREBASE CLOUD MESSAGING (capture FCM token on login) ===== -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+<script>
+(function () {
+  // ------------------------------------------------------------------
+  // TODO: fill apiKey / authDomain / projectId / appId from the Firebase
+  // console (Project settings -> Your apps -> Web app). Keep these values
+  // identical to the firebaseConfig block in /firebase-messaging-sw.js
+  // messagingSenderId + VAPID public key are already provided.
+  // ------------------------------------------------------------------
+  var firebaseConfig = {
+    apiKey: "TODO",
+    authDomain: "TODO.firebaseapp.com",
+    projectId: "TODO",
+    appId: "TODO",
+    messagingSenderId: "205202417147"
+  };
+
+  // Firebase Cloud Messaging VAPID public key
+  // (Project settings -> Cloud Messaging -> Web Push certificates)
+  var VAPID_PUBLIC_KEY = "BB6c9RpDYMqHuv5WGchiDu4XI_PM-PTnWXH4v9iotNvb2tI_N51cDFrZvMwxfor1LXsnKxbawfRC82aVJc1gD7o";
+
+  var tokenInput = document.getElementById('fcmTokenInput');
+  var statusText = document.getElementById('notifStatus');
+  var allowBtn   = document.getElementById('allowNotifBtn');
+  var notifRow   = document.getElementById('notifRow');
+  var signinForm = document.getElementById('signinForm');
+  var messaging  = null;
+  var tokenPromise = null;
+
+  function configReady() {
+    return !!firebaseConfig.apiKey && firebaseConfig.apiKey !== 'TODO'
+      && !!firebaseConfig.projectId && firebaseConfig.projectId !== 'TODO'
+      && !!firebaseConfig.appId && firebaseConfig.appId !== 'TODO';
+  }
+
+  function setStatus(msg, enabled) {
+    if (statusText) statusText.textContent = msg;
+    if (enabled && notifRow) notifRow.classList.add('notif-enabled');
+    if (enabled && allowBtn) allowBtn.style.display = 'none';
+  }
+
+  function getMessaging() {
+    if (!messaging) {
+      firebase.initializeApp(firebaseConfig);
+      messaging = firebase.messaging();
+    }
+    return messaging;
+  }
+
+  function fetchToken() {
+    if (tokenPromise) return tokenPromise; // one in-flight request at a time
+
+    tokenPromise = navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      .then(function (reg) {
+        return getMessaging().getToken({
+          vapidKey: VAPID_PUBLIC_KEY,
+          serviceWorkerRegistration: reg
+        });
+      })
+      .then(function (currentToken) {
+        if (currentToken) {
+          if (tokenInput) tokenInput.value = currentToken;
+          setStatus('Notifications enabled for this device', true);
+        } else {
+          setStatus('No token yet — please allow notifications', false);
+        }
+        return currentToken || '';
+      })
+      .catch(function (err) {
+        console.error('FCM getToken failed:', err);
+        setStatus('Could not enable notifications', false);
+        return '';
+      });
+
+    return tokenPromise;
+  }
+
+  function enableNotifications() {
+    if (!('Notification' in window)) {
+      setStatus('Notifications are not supported in this browser', false);
+      return;
+    }
+    if (!configReady()) {
+      console.warn('Firebase config not filled in signin.php — FCM token capture disabled.');
+      setStatus('Notifications not configured', false);
+      return;
+    }
+    Notification.requestPermission().then(function (permission) {
+      if (permission === 'granted') {
+        fetchToken();
+      } else if (permission === 'denied') {
+        setStatus('Notifications are blocked in your browser settings', false);
+      }
+    });
+  }
+
+  if (allowBtn) allowBtn.addEventListener('click', enableNotifications);
+
+  // Silent (re)capture when permission was already granted earlier
+  window.addEventListener('load', function () {
+    if (!configReady() || !('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      fetchToken();
+    } else if (Notification.permission === 'default') {
+      setStatus('Enable notifications to receive alerts & payment updates', false);
+    }
+  });
+
+  // Never block login: wait at most 3s for an already-granted token, then submit
+  if (signinForm) {
+    signinForm.addEventListener('submit', function (e) {
+      var canWait = tokenInput && tokenInput.value === ''
+        && 'Notification' in window && Notification.permission === 'granted' && configReady();
+      if (!canWait) return; // submit normally (token will be empty)
+
+      e.preventDefault();
+      var submitted = false;
+      var go = function () {
+        if (submitted) return;
+        submitted = true;
+        // form.submit is shadowed by the <input name="submit"> button
+        HTMLFormElement.prototype.submit.call(signinForm);
+      };
+      fetchToken().then(go);
+      setTimeout(go, 3000);
+    });
+  }
+})();
 </script>
 <?php include('footertest.php');?>
 
