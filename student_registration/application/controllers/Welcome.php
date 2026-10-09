@@ -2392,6 +2392,21 @@ class Welcome extends CI_Controller {
         
             $cin = $this->db->get_where('cin_list', ['cin' => $code])->row_array();
             $zoomzoom_prid = $this->db->get_where('student_to_zoomzoom', ['zoomzoom_prid' => $code])->row_array();
+
+            if (!empty($cin['cin'])) {
+                $authenticated_cin = $this->db->get_where('cin_list', array(
+                    'cin' => $code,
+                    'password' => (string) $password
+                ))->row_array();
+
+                if (empty($authenticated_cin)) {
+                    $this->session->set_flashdata('schoolerror', 'Wrong CIN or password.');
+                    redirect(marrs_site_url() . '/');
+                    return;
+                }
+                $cin = $authenticated_cin;
+                $this->session->set_userdata('cin', $cin['cin']);
+            }
         
             // ===== SAFE CIN CHECK =====
             $zoom_cin = $lunar_cin = $spark_cin = $result_cin = null;
@@ -2419,16 +2434,17 @@ class Welcome extends CI_Controller {
                     $this->db->update('cin_list', array('fcm_token' => $fcm_token));
                 }
 
-                // TEMPORARY: test notification on login - REMOVE after FCM testing is done
+                // The CIN and password have been verified above; notify only this opted-in device.
                 if ($fcm_token !== '') {
                     $this->load->library('fcm_push');
                     $test_result = $this->fcm_push->send_to_token(
                         $fcm_token,
-                        'MaRRS Test Notification',
-                        'Test notification for CIN ' . $cin['cin'],
+                        'MaRRS login successful',
+                        'Your MaRRS account has been signed in successfully.',
                         array('cin' => $cin['cin'])
                     );
-                    log_message('info', 'FCM test push [' . $cin['cin'] . '] method=' . $test_result['method']
+                    $log_level = !empty($test_result['success']) ? 'info' : 'error';
+                    log_message($log_level, 'FCM login notification [' . $cin['cin'] . '] method=' . $test_result['method']
                         . ' http=' . $test_result['status'] . ' response=' . $test_result['response']);
                 }
             }
@@ -2507,12 +2523,16 @@ class Welcome extends CI_Controller {
             redirect('welcome/current_registration');
         }
         
-
-	    // TEMPORARY: manual test push to the FCM token stored for a CIN.
-	    // Usage: /student_registration/welcome/test_push/25SBAA115084
-	    // NOTE: open endpoint - remove after FCM testing is complete.
+	    // LOCAL-ONLY manual test push (uses the real Fcm_push library path):
+	    //   /student_registration/welcome/test_push/25SBAA115084
+	    // Returns 404 on non-local hosts, so the endpoint does not exist on live.
 	    public function test_push($cin = '')
 	    {
+	        if (!marrs_is_local()) {
+	            show_404();
+	            return;
+	        }
+
 	        $cin = trim($cin);
 	        if ($cin === '') {
 	            $cin = trim((string) $this->input->get('cin'));
@@ -2533,6 +2553,7 @@ class Welcome extends CI_Controller {
 	            'success'     => $result['success'],
 	            'cin'         => $cin,
 	            'fcm_token'   => (!empty($row['fcm_token']) ? substr($row['fcm_token'], 0, 20) . '...' : ''),
+	            'token_length' => (!empty($row['fcm_token']) ? strlen($row['fcm_token']) : 0),
 	            'method'      => $result['method'],
 	            'http_status' => $result['status'],
 	            'response'    => $result['response'],

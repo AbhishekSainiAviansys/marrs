@@ -7,17 +7,16 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Reads Firebase credentials from the `credentials` table
  * (row with title = 'firebase notification'):
  *
- *   - `public`    : VAPID public key (browser side - reference only)
- *   - `private`   : FCM server key, used for the legacy HTTP API
- *   - `sdkapijson`: service account JSON, used for FCM HTTP v1
- *                   (automatic fallback when the legacy API is refused)
+ *   - `public`    : VAPID public key (browser side)
+ *   - `sdkapijson`: Firebase Web App config or service-account JSON
+ *   - firebasekey/: protected service-account JSON file for FCM HTTP v1
  *
  * Usage:
  *   $this->load->library('fcm_push');
  *   $result = $this->fcm_push->send_to_token($token, $title, $body, $data);
  *   $result = $this->fcm_push->send_to_cin($cin, $title, $body, $data);
  *
- * $result = array('success'=>bool, 'method'=>'legacy|v1', 'status'=>int, 'response'=>string)
+ * $result = array('success'=>bool, 'method'=>'v1|none', 'status'=>int, 'response'=>string)
  */
 class Fcm_push {
 
@@ -94,7 +93,8 @@ class Fcm_push {
 		$notification = array(
 			'title' => (string) $title,
 			'body'  => (string) $body,
-			'sound' => 'default',
+			// NOTE: FCM HTTP v1 message.notification only allows title/body/image.
+			// (legacy fields like `sound` cause HTTP 400 INVALID_ARGUMENT)
 		);
 
 		$payload_data = array();
@@ -102,73 +102,64 @@ class Fcm_push {
 			$payload_data[(string) $k] = (string) $v;
 		}
 
-		// ---- 1) Legacy HTTP API using the `private` server key ----
-		if (!empty($creds['private'])) {
-			$result = $this->_send_legacy($creds['private'], $token, $notification, $payload_data);
-			if ($result['success']) {
-				return $result;
-			}
-			// keep the legacy failure as the reported error unless v1 also fails
-			$this->last_error = $result['response'];
-			$this->last_method = 'legacy';
-		}
-
-		// ---- 2) FCM HTTP v1 using the service account JSON (`sdkapijson`) ----
-		if (!empty($creds['sdkapijson'])) {
-			return $this->_send_v1($creds['sdkapijson'], $token, $notification, $payload_data);
+		// The credentials table may store the public Web App config in sdkapijson.
+		// Use service-account JSON there when present; otherwise use the protected key file.
+		$service_account_json = $this->_get_service_account_json($creds);
+		if ($service_account_json !== '') {
+			return $this->_send_v1($service_account_json, $token, $notification, $payload_data);
 		}
 
 		if ($this->last_error === '') {
-			$this->last_error = 'No FCM credentials configured (`private` / `sdkapijson` empty)';
+			$this->last_error = 'No valid Firebase service account JSON is configured.';
 		}
 
 		return $this->_result(FALSE, $this->last_method, 0, $this->last_error);
 	}
 
-	// ------------------------------------------------------------------
-	// Legacy FCM HTTP API  (POST https://fcm.googleapis.com/fcm/send)
-	// ------------------------------------------------------------------
-	protected function _send_legacy($server_key, $token, $notification, $data)
+	/** Return service-account JSON from the table or the protected project key file. */
+	protected function _get_service_account_json($creds)
 	{
-		$body = array(
-			'to'           => $token,
-			'notification' => $notification,
-			'priority'     => 'high',
-		);
-		if (!empty($data)) {
-			$body['data'] = $data;
+		$stored_json = isset($creds['sdkapijson']) ? (string) $creds['sdkapijson'] : '';
+		$stored_account = json_decode($stored_json, TRUE);
+		if (is_array($stored_account) && !empty($stored_account['client_email'])
+			&& !empty($stored_account['private_key']) && !empty($stored_account['project_id'])) {
+			return $stored_json;
 		}
 
-		$ch = curl_init('https://fcm.googleapis.com/fcm/send');
-		curl_setopt_array($ch, array(
-			CURLOPT_RETURNTRANSFER => TRUE,
-			CURLOPT_POST            => TRUE,
-			CURLOPT_TIMEOUT         => 30,
-			CURLOPT_HTTPHEADER      => array(
-				'Content-Type: application/json',
-				'Authorization: key=' . $server_key,
-			),
-			CURLOPT_POSTFIELDS      => json_encode($body),
-		));
-		$response = curl_exec($ch);
-		$http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-		$curl_error = curl_error($ch);
-		curl_close($ch);
+		$web_config = $stored_account;
+		if (!is_array($web_config)) {
+			$objectStart = strpos($stored_json, '{');
+			$objectEnd = strrpos($stored_json, '}');
+			if ($objectStart !== FALSE && $objectEnd !== FALSE && $objectEnd > $objectStart) {
+				$web_config = json_decode(substr($stored_json, $objectStart, $objectEnd - $objectStart + 1), TRUE);
+			}
+		}
+		$expected_project_id = (is_array($web_config) && !empty($web_config['projectId']))
+			? trim((string) $web_config['projectId'])
+			: '';
 
-		if ($response === FALSE) {
-			$this->last_error = 'cURL error (legacy FCM): ' . $curl_error;
-			return $this->_result(FALSE, 'legacy', $http, $this->last_error);
+		$path = getenv('FIREBASE_SERVICE_ACCOUNT_FILE');
+		if ($path === FALSE || trim($path) === '') {
+			$path = FCPATH . 'firebasekey/marrs-51377-76aa3cb155f6.json';
+		}
+		if (!is_file($path) || !is_readable($path)) {
+			$this->last_error = 'Firebase service account file is missing or unreadable.';
+			return '';
 		}
 
-		$json = json_decode($response, TRUE);
-		$failure = (is_array($json) && isset($json['failure'])) ? (int) $json['failure'] : -1;
-		$success = ($http === 200 && $failure === 0);
-
-		if (!$success) {
-			$this->last_error = 'Legacy FCM failed (HTTP ' . $http . '): ' . $response;
+		$file_json = file_get_contents($path);
+		$file_account = is_string($file_json) ? json_decode($file_json, TRUE) : NULL;
+		if (!is_array($file_account) || empty($file_account['client_email'])
+			|| empty($file_account['private_key']) || empty($file_account['project_id'])) {
+			$this->last_error = 'Firebase service account file is not valid service-account JSON.';
+			return '';
+		}
+		if ($expected_project_id !== '' && $file_account['project_id'] !== $expected_project_id) {
+			$this->last_error = 'Firebase service account project does not match the Web App config.';
+			return '';
 		}
 
-		return $this->_result($success, 'legacy', $http, ($response === '' || $response === FALSE) ? $this->last_error : $response);
+		return $file_json;
 	}
 
 	// ------------------------------------------------------------------
@@ -179,7 +170,7 @@ class Fcm_push {
 	{
 		$sa = json_decode($service_account_json, TRUE);
 		if (!is_array($sa) || empty($sa['client_email']) || empty($sa['private_key']) || empty($sa['project_id'])) {
-			$this->last_error = 'Invalid `sdkapijson` (service account JSON) in credentials table';
+			$this->last_error = 'Invalid Firebase service-account JSON';
 			return $this->_result(FALSE, 'v1', 0, $this->last_error);
 		}
 
@@ -195,11 +186,7 @@ class Fcm_push {
 		if (!empty($data)) {
 			$message['data'] = $data;
 		}
-		// Web push extras (used for browser tokens, harmless for app tokens)
-		$message['webpush'] = array(
-			'headers'     => array('Urgency' => 'high'),
-			'fcm_options' => array('link' => 'https://marrs.in/'),
-		);
+		$message['webpush'] = array('headers' => array('Urgency' => 'high'));
 
 		$url = 'https://fcm.googleapis.com/v1/projects/' . rawurlencode($sa['project_id']) . '/messages:send';
 

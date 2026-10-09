@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 keys/private.pem
+student_registration/firebasekey/*.json
 
 # ---- Local-only files (machine specific; never upload / never affect live) ----
 .env.local
@@ -54,4 +55,3 @@ Thumbs.db
 .vscode/
 
 signin
-

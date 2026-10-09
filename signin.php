@@ -498,27 +498,14 @@ function togglePwd(id) {
 </script>
 
 <!-- ===== FIREBASE CLOUD MESSAGING (capture FCM token on login) ===== -->
+<script src="firebase-config.php"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script>
 (function () {
-  // ------------------------------------------------------------------
-  // TODO: fill apiKey / authDomain / projectId / appId from the Firebase
-  // console (Project settings -> Your apps -> Web app). Keep these values
-  // identical to the firebaseConfig block in /firebase-messaging-sw.js
-  // messagingSenderId + VAPID public key are already provided.
-  // ------------------------------------------------------------------
-  var firebaseConfig = {
-    apiKey: "TODO",
-    authDomain: "TODO.firebaseapp.com",
-    projectId: "TODO",
-    appId: "TODO",
-    messagingSenderId: "205202417147"
-  };
-
-  // Firebase Cloud Messaging VAPID public key
-  // (Project settings -> Cloud Messaging -> Web Push certificates)
-  var VAPID_PUBLIC_KEY = "BB6c9RpDYMqHuv5WGchiDu4XI_PM-PTnWXH4v9iotNvb2tI_N51cDFrZvMwxfor1LXsnKxbawfRC82aVJc1gD7o";
+  var appSettings = window.MARRS_FIREBASE_CONFIG || {};
+  var firebaseConfig = appSettings.firebase || {};
+  var VAPID_PUBLIC_KEY = appSettings.vapidKey || '';
 
   var tokenInput = document.getElementById('fcmTokenInput');
   var statusText = document.getElementById('notifStatus');
@@ -528,22 +515,54 @@ function togglePwd(id) {
   var messaging  = null;
   var tokenPromise = null;
 
+  function log(level, message, error) {
+    var context = {
+      origin: window.location.origin,
+      secureContext: window.isSecureContext,
+      notificationPermission: ('Notification' in window) ? Notification.permission : 'unsupported'
+    };
+    var logger = console[level] || console.log;
+    if (error) {
+      logger.call(console, '[MaRRS notifications] ' + message, context, error);
+    } else {
+      logger.call(console, '[MaRRS notifications] ' + message, context);
+    }
+  }
+
   function configReady() {
-    return !!firebaseConfig.apiKey && firebaseConfig.apiKey !== 'TODO'
-      && !!firebaseConfig.projectId && firebaseConfig.projectId !== 'TODO'
-      && !!firebaseConfig.appId && firebaseConfig.appId !== 'TODO';
+    return !!firebaseConfig.apiKey && !!firebaseConfig.authDomain
+      && !!firebaseConfig.projectId && !!firebaseConfig.appId
+      && !!firebaseConfig.messagingSenderId && !!VAPID_PUBLIC_KEY;
   }
 
   function setStatus(msg, enabled) {
     if (statusText) statusText.textContent = msg;
-    if (enabled && notifRow) notifRow.classList.add('notif-enabled');
+    if (notifRow) notifRow.classList.toggle('notif-enabled', !!enabled);
     if (enabled && allowBtn) allowBtn.style.display = 'none';
+    if (!enabled && allowBtn) allowBtn.style.display = '';
   }
 
   function getMessaging() {
     if (!messaging) {
+      if (!window.firebase || typeof firebase.messaging !== 'function') {
+        throw new Error('Firebase Messaging SDK did not load. Check the browser network and content-security settings.');
+      }
       firebase.initializeApp(firebaseConfig);
       messaging = firebase.messaging();
+      messaging.onMessage(function (payload) {
+        var notification = (payload && payload.notification) || {};
+        var data = (payload && payload.data) || {};
+        var title = notification.title || data.title || 'MaRRS';
+        try {
+          new Notification(title, {
+            body: notification.body || data.body || '',
+            icon: 'https://marrs.in/newassets/MaRRS.png',
+            data: data
+          });
+        } catch (err) {
+          log('error', 'Unable to display the foreground notification', err);
+        }
+      });
     }
     return messaging;
   }
@@ -551,7 +570,13 @@ function togglePwd(id) {
   function fetchToken() {
     if (tokenPromise) return tokenPromise; // one in-flight request at a time
 
-    tokenPromise = navigator.serviceWorker.register('/firebase-messaging-sw.js')
+    if (!navigator.serviceWorker) {
+      setStatus('Service workers are not supported in this browser', false);
+      log('error', 'Service workers are not supported');
+      return Promise.resolve('');
+    }
+
+    var request = navigator.serviceWorker.register('firebase-messaging-sw.js')
       .then(function (reg) {
         return getMessaging().getToken({
           vapidKey: VAPID_PUBLIC_KEY,
@@ -562,36 +587,64 @@ function togglePwd(id) {
         if (currentToken) {
           if (tokenInput) tokenInput.value = currentToken;
           setStatus('Notifications enabled for this device', true);
+          log('info', 'FCM token acquired; token value intentionally omitted from logs');
         } else {
-          setStatus('No token yet — please allow notifications', false);
+          setStatus('Firebase returned no token. Check browser permission and Firebase settings.', false);
+          log('warn', 'FCM returned an empty token');
         }
         return currentToken || '';
       })
       .catch(function (err) {
-        console.error('FCM getToken failed:', err);
-        setStatus('Could not enable notifications', false);
-        return '';
+        log('error', 'Unable to register the service worker or obtain an FCM token', err);
+        setStatus('Could not enable notifications. See browser console for details.', false);
+        throw err;
       });
 
+    tokenPromise = request.then(function (token) {
+      tokenPromise = null;
+      return token;
+    }, function () {
+      tokenPromise = null;
+      return '';
+    });
     return tokenPromise;
   }
 
   function enableNotifications() {
     if (!('Notification' in window)) {
       setStatus('Notifications are not supported in this browser', false);
+      log('error', 'Notifications API is not supported');
       return;
     }
     if (!configReady()) {
-      console.warn('Firebase config not filled in signin.php — FCM token capture disabled.');
-      setStatus('Notifications not configured', false);
+      log('error', 'Firebase web config or VAPID key is missing');
+      setStatus('Notifications not configured. Check the active Firebase row in credentials.', false);
       return;
     }
+    if (window.isSecureContext === false) {
+      log('error', 'Notifications require HTTPS (localhost is allowed for local development)');
+      setStatus('Notifications require HTTPS. Use localhost locally or HTTPS on the live site.', false);
+      return;
+    }
+    if (!navigator.serviceWorker) {
+      setStatus('Service workers are not supported in this browser', false);
+      log('error', 'Service workers are not supported');
+      return;
+    }
+
     Notification.requestPermission().then(function (permission) {
       if (permission === 'granted') {
         fetchToken();
       } else if (permission === 'denied') {
         setStatus('Notifications are blocked in your browser settings', false);
+        log('warn', 'Notification permission was denied');
+      } else {
+        setStatus('Notification permission was not granted', false);
+        log('warn', 'Notification permission request was dismissed');
       }
+    }).catch(function (err) {
+      log('error', 'Notification permission request failed', err);
+      setStatus('Could not request notification permission. See browser console.', false);
     });
   }
 
@@ -599,11 +652,27 @@ function togglePwd(id) {
 
   // Silent (re)capture when permission was already granted earlier
   window.addEventListener('load', function () {
-    if (!configReady() || !('Notification' in window)) return;
+    if (!configReady()) {
+      setStatus('Notifications not configured. Check the active Firebase row in credentials.', false);
+      log('warn', 'Firebase web config or VAPID key is missing');
+      return;
+    }
+    if (!('Notification' in window)) {
+      setStatus('Notifications are not supported in this browser', false);
+      log('warn', 'Notifications API is not supported');
+      return;
+    }
+    if (window.isSecureContext === false) {
+      setStatus('Notifications require HTTPS. Use localhost locally or HTTPS on the live site.', false);
+      log('warn', 'Page is not in a secure context');
+      return;
+    }
     if (Notification.permission === 'granted') {
       fetchToken();
     } else if (Notification.permission === 'default') {
       setStatus('Enable notifications to receive alerts & payment updates', false);
+    } else {
+      setStatus('Notifications are blocked in your browser settings', false);
     }
   });
 
@@ -629,4 +698,3 @@ function togglePwd(id) {
 })();
 </script>
 <?php include('footertest.php');?>
-

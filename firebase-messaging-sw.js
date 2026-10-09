@@ -3,23 +3,27 @@
  * Firebase Cloud Messaging service worker (shows notifications when the
  * signin page / site is in the background)
  *
- * IMPORTANT: keep firebaseConfig identical to the one in /signin.php
+ * Firebase settings are loaded from the credentials-table endpoint.
  * ==========================================================================
  */
-importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+try {
+  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+  importScripts('firebase-config.php');
+} catch (e) {
+  console.error('[MaRRS notifications] Could not load Firebase SDK/config in service worker:', e);
+  throw e;
+}
 
-// TODO: fill apiKey / authDomain / projectId / appId from the Firebase console
-// (Project settings -> Your apps -> Web app). Must match /signin.php
-var firebaseConfig = {
-  apiKey: 'TODO',
-  authDomain: 'TODO.firebaseapp.com',
-  projectId: 'TODO',
-  appId: 'TODO',
-  messagingSenderId: '205202417147'
-};
+var firebaseConfig = self.MARRS_FIREBASE_CONFIG && self.MARRS_FIREBASE_CONFIG.firebase;
 
 try {
+  if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.authDomain
+      || !firebaseConfig.projectId || !firebaseConfig.appId
+      || !firebaseConfig.messagingSenderId) {
+    throw new Error('Firebase web app settings are missing from the active credentials table row.');
+  }
+
   firebase.initializeApp(firebaseConfig);
 
   var messaging = firebase.messaging();
@@ -37,14 +41,14 @@ try {
     });
   });
 } catch (e) {
-  console.error('FCM service worker init failed:', e);
+  console.error('[MaRRS notifications] Service worker initialization failed:', e);
 }
 
 // Open the site (or the link given in the payload) when a notification is clicked
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
   var data = event.notification.data || {};
-  var url = data.click_action || 'https://marrs.in/';
+  var url = data.click_action || self.location.origin + '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (windowClients) {
       for (var i = 0; i < windowClients.length; i++) {
@@ -56,4 +60,3 @@ self.addEventListener('notificationclick', function (event) {
     })
   );
 });
-
