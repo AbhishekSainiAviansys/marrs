@@ -51,7 +51,7 @@ tr.row-warn td{ background:rgba(180,83,9,.07); }
 <header>
     <div>
         <h1>Webhook &amp; Split Monitor <span class="badge">last 24 hours</span></h1>
-        <div class="meta">logged in: <?php echo htmlspecialchars($account->username ?? ($account->email ?? 'dashboard')); ?> · auto-refresh 30s</div>
+        <div class="meta">Webhook &amp; split simulator · no auth · auto-refresh 30s</div>
     </div>
     <div class="meta" id="generated_at">loading…</div>
     <div>
@@ -215,7 +215,6 @@ function render(d){
 
 function load(){
     fetch(BASE + '/data').then(function(r){
-        if (r.status === 401){ location.href = <?php echo json_encode(base_url('dash_login')); ?>; return null; }
         return r.json();
     }).then(function(d){ if (d) render(d); }).catch(function(e){
         document.getElementById('generated_at').textContent = 'load failed: ' + e;

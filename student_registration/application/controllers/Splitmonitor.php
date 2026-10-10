@@ -14,7 +14,7 @@ require_once APPPATH . 'controllers/Splitpay.php';
  * 24h, plus exact errors from splitpay.log / webhook.log (tail) and the PHP
  * error_log - so webhook setup/call problems are visible in one place.
  *
- * Auth: same dashboard_accounts session as Payment_dashboard.
+ * Standalone webhook/split simulator. NO login, NO dashboard coupling.
  */
 class Splitmonitor extends CI_Controller
 {
@@ -27,30 +27,12 @@ class Splitmonitor extends CI_Controller
     {
         parent::__construct();
 
+        // Standalone webhook/split simulator: NO dashboard login, NO email/password.
+        // Deliberately NOT using the other team's dashboard_accounts / dash_login.
         $this->load->database();
-        $this->load->library('session');
         $this->load->helper('url');
 
-        $id = (int)$this->session->userdata('dash_account_id');
-
-        $this->account = $id
-            ? $this->db->get_where('dashboard_accounts', [
-                'id'         => $id,
-                'is_active'  => 1,
-                'deleted_at' => NULL,
-            ])->row()
-            : NULL;
-
-        if (!$this->account) {
-            if ($this->router->fetch_method() === 'data') {
-                http_response_code(401);
-                header('Content-Type: application/json');
-                echo json_encode(['error' => 'Session expired']);
-                exit;
-            }
-            redirect('/dash_login');
-            exit;
-        }
+        $this->account = null;
     }
 
     public function index()
