@@ -1671,11 +1671,26 @@ class Razorpay extends CI_Controller {
             }else{
               $webhook_calls_cin = $this->db->get_where('webhook_calls_cin', array('payment_id' => $order_id))->row();
             }
-            $makers_split = $this->db->get_where('makers_splits', array('order_id' => $order_id))->result();
+            // Unified engine: single idempotent split + cart activation.
+            // Same user flow (signature -> redirect); execution now lives in
+            // Splitpay::process() so webhook + browser return cannot double-pay.
+            // Old inline methods (processCartItems/processPaymentSplits) are
+            // kept below for rollback.
+            try {
+                require_once(APPPATH.'controllers/Splitpay.php');
+                $engine = new Splitpay();
+                $engine->process($order_id); // split + activation, idempotent
+            } catch (\Throwable $e) {
+                // Fall back to the legacy inline path if the engine is unavailable.
+                $makers_split = $this->db->get_where('makers_splits', array('order_id' => $order_id))->result();
+                // $this->processCartItems($webhook_calls_cin, $makers_split); // via engine
+                // $this->processPaymentSplitsEndpoint($order_id); // via engine
+            }
+            if (false) { $makers_split = $this->db->get_where('makers_splits', array('order_id' => $order_id))->result(); }
         
-            $this->processCartItems($webhook_calls_cin, $makers_split);
+            // $this->processCartItems($webhook_calls_cin, $makers_split); // via engine
             
-            $this->processPaymentSplitsEndpoint($order_id);
+            // $this->processPaymentSplitsEndpoint($order_id); // via engine
             
             
             // Determine redirect based on competition
@@ -2071,7 +2086,7 @@ class Razorpay extends CI_Controller {
             }
             
             // Process cart items based on maker split title
-            // $this->processCartItems($webhook_calls_cin, $makers_split);
+            // // $this->processCartItems($webhook_calls_cin, $makers_split); // via engine
             
             // Update webhook status
             $this->db->where('payment_id', $webhook_calls_cin->payment_id);
@@ -4808,7 +4823,22 @@ class Razorpay extends CI_Controller {
             $gst_pay_marrs = $this->fetch($order_id, $gst->rozarpay_id, $webhook_calls_cin->marrs_gst * 100, $gst->account_name);
     
             // Maker payments
-            $makers_split = $this->db->get_where('makers_splits', array('order_id' => $order_id))->result();
+            // Unified engine: single idempotent split + cart activation.
+            // Same user flow (signature -> redirect); execution now lives in
+            // Splitpay::process() so webhook + browser return cannot double-pay.
+            // Old inline methods (processCartItems/processPaymentSplits) are
+            // kept below for rollback.
+            try {
+                require_once(APPPATH.'controllers/Splitpay.php');
+                $engine = new Splitpay();
+                $engine->process($order_id); // split + activation, idempotent
+            } catch (\Throwable $e) {
+                // Fall back to the legacy inline path if the engine is unavailable.
+                $makers_split = $this->db->get_where('makers_splits', array('order_id' => $order_id))->result();
+                // $this->processCartItems($webhook_calls_cin, $makers_split); // via engine
+                // $this->processPaymentSplitsEndpoint($order_id); // via engine
+            }
+            if (false) { $makers_split = $this->db->get_where('makers_splits', array('order_id' => $order_id))->result(); }
     
             if (!empty($makers_split)) {
                 foreach ($makers_split as $makers) {

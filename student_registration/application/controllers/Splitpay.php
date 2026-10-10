@@ -458,7 +458,9 @@ class Splitpay extends CI_Controller {
 
     // ================================================================== //
     // 2. CORE ENGINE  ->  process($order_id)
-    //    Idempotent. Safe to call from webhook AND verify3 concurrently.
+    //    Idempotent. Safe to call from webhook AND verify3/verify2 concurrently.
+    //    Unified: detects pay3 flow (webhook_calls, by prid) vs pay2/CIN flow
+    //    (webhook_calls_cin, by cin). Flow stays the same, execution is one engine.
     // ================================================================== //
     public function process($order_id)
     {
@@ -467,51 +469,80 @@ class Splitpay extends CI_Controller {
             return ['status' => 'error', 'message' => 'order_id missing'];
         }
 
-        $wc = $this->db->get_where('webhook_calls', ['payment_id' => $order_id])->row();
-        if (empty($wc)) {
-            $this->log_line("PROCESS ".$order_id.": no webhook_calls row - nothing to split.");
+        $flow = $this->detect_flow($order_id);
+        if ($flow === null) {
+            $this->log_line("PROCESS ".$order_id.": no webhook_calls / webhook_calls_cin row - nothing to split.");
             return ['status' => 'not_found', 'order_id' => $order_id];
         }
+        $wc    = $flow['row'];
+        $table = $flow['table'];   // 'webhook_calls' (pay3) or 'webhook_calls_cin' (pay2/CIN)
+        $is_cin = ($table === 'webhook_calls_cin');
 
         // Already done -> only top-up unpaid maker rows (never re-run aggregate legs).
         if ((int)$wc->status === 1) {
             $maker = $this->split_makers($order_id, false);
-            $this->log_line("PROCESS ".$order_id.": already status=1. maker top-up: ".json_encode($maker));
-            return ['status' => 'already_done', 'order_id' => $order_id, 'makers' => $maker];
+            $extra = [];
+            if ($is_cin) {
+                // Split done but cart may still be inactive -> auto-heal activation too.
+                $extra = $this->activate_cart($order_id);
+            }
+            $this->log_line("PROCESS ".$order_id." [".$table."]: already status=1. maker top-up: ".json_encode($maker).($extra ? " activation: ".json_encode($extra) : ""));
+            $out = ['status' => 'already_done', 'order_id' => $order_id, 'flow' => $table, 'makers' => $maker];
+            if ($extra) { $out['activation'] = $extra; }
+            return $out;
         }
 
         // Atomic claim: status 0 -> 2. Only one worker can win.
         $this->db->where('payment_id', $order_id);
-        $this->db->where('prid', $wc->prid);
+        if (!$is_cin) { $this->db->where('prid', $wc->prid); }
         $this->db->where('status', 0);
-        $this->db->update('webhook_calls', ['status' => 2]);
+        $this->db->update($table, ['status' => 2]);
         if ($this->db->affected_rows() === 0) {
-            $this->log_line("PROCESS ".$order_id.": claim failed (status=".$wc->status.") - another worker owns it.");
-            return ['status' => 'busy', 'order_id' => $order_id];
+            $this->log_line("PROCESS ".$order_id." [".$table."]: claim failed (status=".$wc->status.") - another worker owns it.");
+            return ['status' => 'busy', 'order_id' => $order_id, 'flow' => $table];
         }
 
-        $report = ['status' => 'error', 'order_id' => $order_id, 'legs' => []];
+        $report = ['status' => 'error', 'order_id' => $order_id, 'flow' => $table, 'legs' => []];
 
         try {
             $legs = $this->split_legs($wc);
             $report['legs'] = $legs;
             $report['makers'] = $this->split_makers($order_id, false);
 
-            $this->record_split($wc, $legs, $report['makers']);
+            $this->record_split($wc, $legs, $report['makers'], $table);
 
-            // Create CINs (pay3 flow) BEFORE any cart cleanup - needs cart_prid.
-            $report['cins'] = $this->create_cins($order_id);
+            if ($is_cin) {
+                // CIN flow: activate cart items (new_cart) BEFORE clearing amount_cart.
+                $report['activation'] = $this->activate_cart($order_id);
+                $act_failed = !empty($report['activation']['failed']);
+            } else {
+                // Create CINs (pay3 flow) BEFORE any cart cleanup - needs cart_prid.
+                $report['cins'] = $this->create_cins($order_id);
+            }
 
             $this->db->where('payment_id', $order_id);
-            $this->db->where('prid', $wc->prid);
-            $this->db->update('webhook_calls', ['status' => 1, 'date_of_payment' => date('Y-m-d H:i:s')]);
-            // verify3 parity: cart cleanup is by prid only (column is
-            // payment_order_id, NOT payment_id - old filter matched nothing).
-            $this->db->where('prid', $wc->prid);
-            $this->db->delete('cart_prid');
+            if (!$is_cin) { $this->db->where('prid', $wc->prid); }
+            $this->db->update($table, ['status' => 1, 'date_of_payment' => date('Y-m-d H:i:s')]);
+
+            if ($is_cin) {
+                // verify2 parity: clear the pending cart ONLY when split + activation
+                // both succeeded, so a failed activation stays visible + retryable.
+                if (empty($act_failed)) {
+                    $this->db->where('cin', $wc->cin);
+                    $this->db->where('payment_id', $order_id);
+                    $this->db->delete('amount_cart');
+                } else {
+                    $this->log_line("PROCESS ".$order_id." [cin]: activation had failures - amount_cart kept for retry.");
+                }
+            } else {
+                // verify3 parity: cart cleanup is by prid only (column is
+                // payment_order_id, NOT payment_id - old filter matched nothing).
+                $this->db->where('prid', $wc->prid);
+                $this->db->delete('cart_prid');
+            }
 
             $report['status'] = 'processed';
-            $this->log_line("PROCESS ".$order_id.": DONE ".json_encode($report));
+            $this->log_line("PROCESS ".$order_id." [".$table."]: DONE ".json_encode($report));
 
             // Admin push on successful payment (never breaks the split).
             $this->notify_admin($order_id, $wc, $report);
@@ -521,13 +552,32 @@ class Splitpay extends CI_Controller {
         } catch (\Throwable $e) {
             // Roll claim back to 0 so it is safely retryable.
             $this->db->where('payment_id', $order_id);
-            $this->db->where('prid', $wc->prid);
-            $this->db->update('webhook_calls', ['status' => 0]);
+            if (!$is_cin) { $this->db->where('prid', $wc->prid); }
+            $this->db->update($table, ['status' => 0]);
             $report['status'] = 'error';
             $report['error']  = $e->getMessage();
-            $this->log_line("PROCESS ".$order_id.": ERROR ".$e->getMessage());
+            $this->log_line("PROCESS ".$order_id." [".$table."]: ERROR ".$e->getMessage());
             return $report;
         }
+    }
+
+    // ------------------------------------------------------------------ //
+    // Flow detector: pay3 (webhook_calls) wins when both exist; otherwise
+    // pay2/CIN (webhook_calls_cin). Returns null when neither has the order.
+    // ------------------------------------------------------------------ //
+    private function detect_flow($order_id)
+    {
+        $wc = $this->db->get_where('webhook_calls', ['payment_id' => $order_id])->row();
+        if (!empty($wc)) {
+            return ['table' => 'webhook_calls', 'row' => $wc];
+        }
+        if ($this->db->table_exists('webhook_calls_cin')) {
+            $wcc = $this->db->get_where('webhook_calls_cin', ['payment_id' => $order_id])->row();
+            if (!empty($wcc)) {
+                return ['table' => 'webhook_calls_cin', 'row' => $wcc];
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------ //
@@ -538,7 +588,9 @@ class Splitpay extends CI_Controller {
     {
         $legs = [];
 
-        $fr_total = (float)$wc->franchise_amount + (float)$wc->franchise_gst + (float)$wc->school_amount;
+        // webhook_calls_cin has no school_amount column - default to 0.
+        $school_amt = isset($wc->school_amount) ? (float)$wc->school_amount : 0.0;
+        $fr_total = (float)$wc->franchise_amount + (float)$wc->franchise_gst + $school_amt;
         if ($fr_total > 0 && !empty($wc->franchise_account_id)) {
             $legs['franchise'] = $this->fetch($wc->payment_id, $wc->franchise_account_id, $fr_total * 100, $wc->franchise_razorpay_name);
         }
@@ -576,6 +628,149 @@ class Splitpay extends CI_Controller {
         }
 
         return $legs;
+    }
+
+    // CART ACTIVATION (pay2/CIN flow) - ported from
+    // Razorpay::processCartItems() with the live bugs fixed:
+    //   - iterates the makers_splits ARRAY (old line 2230 did
+    //     $makers_split->cin on an array -> activation died);
+    //   - duplicate check RESTORED (old one was commented out ->
+    //     double new_cart rows on every re-run);
+    //   - falls back to amount_cart titles when no maker rows exist.
+    // Idempotent: re-runs insert nothing new. Never throws.
+    // Also exposed as /splitpay/activate/<order_id> for the monitor button.
+    // ------------------------------------------------------------------ //
+    public function activate_cart($order_id)
+    {
+        $order_id = trim((string)$order_id);
+        $out = ['status' => 'error', 'order_id' => $order_id, 'activated' => [], 'skipped' => [], 'failed' => []];
+
+        $wc = $this->db->table_exists('webhook_calls_cin')
+            ? $this->db->get_where('webhook_calls_cin', ['payment_id' => $order_id])->row()
+            : null;
+        if (empty($wc)) {
+            $out['status'] = 'not_found';
+            return $out;
+        }
+
+        $comp_ids = array_filter(array_map('trim', explode(',', (string)$wc->comp_id)));
+        $competition = null;
+        foreach ($comp_ids as $cid) {
+            $competition = $this->db->get_where('competition_product_state', ['id' => $cid])->row();
+            if (!empty($competition)) { break; }
+        }
+        if (empty($competition)) {
+            $this->log_line("ACTIVATE ".$order_id.": competition not found for comp_id ".$wc->comp_id);
+            $out['status'] = 'no_competition';
+            $out['failed'][] = 'competition not found';
+            return $out;
+        }
+
+        $normalize = function ($str) {
+            return strtolower(trim(preg_replace('/\s+/', ' ', (string)$str)));
+        };
+        // Same title -> flags mapping as Razorpay::processCartItems().
+        $cart_mappings = [
+            'competition'   => ['status' => 'Paid'],
+            'material a'    => ['study_material_a' => 'Yes', 'study_material' => 'Yes'],
+            'material b'    => ['study_material_b' => 'Yes'],
+            'material c'    => ['study_material_c' => 'Yes'],
+            'material d'    => ['study_material_d' => 'Yes'],
+            'material e'    => ['study_material_e' => 'Yes'],
+            'material f'    => ['study_material_f' => 'Yes'],
+            'mocktest a'    => ['mock_test_a' => 'Yes', 'mock_test' => 'Yes'],
+            'mocktest b'    => ['mock_test_b' => 'Yes'],
+            'mocktest c'    => ['mock_test_c' => 'Yes'],
+            'mocktest d'    => ['mock_test_d' => 'Yes'],
+            'mocktest e'    => ['mock_test_e' => 'Yes'],
+            'mocktest f'    => ['mock_test_f' => 'Yes'],
+            'orientation a' => ['orientation_a' => 'Yes'],
+            'orientation b' => ['orientation_b' => 'Yes'],
+            'orientation c' => ['orientation_c' => 'Yes'],
+            'orientation d' => ['orientation_d' => 'Yes'],
+            'orientation e' => ['orientation_e' => 'Yes'],
+            'orientation f' => ['orientation_f' => 'Yes'],
+        ];
+
+        // Item titles: prefer maker rows (verify2's source); fall back to
+        // amount_cart titles when pay2 never stamped makers_splits.
+        $titles = [];
+        $maker_rows = $this->db->get_where('makers_splits', ['order_id' => $order_id])->result();
+        foreach ($maker_rows as $mr) {
+            if (!empty($mr->title)) { $titles[] = $mr->title; }
+        }
+        if (empty($titles)) {
+            $cart_rows = $this->db->get_where('amount_cart', ['payment_id' => $order_id])->result();
+            foreach ($cart_rows as $cr) {
+                if (!empty($cr->title)) { $titles[] = $cr->title; }
+            }
+        }
+        $titles = array_values(array_unique($titles));
+        if (empty($titles)) {
+            $this->log_line("ACTIVATE ".$order_id.": no maker/cart titles - nothing to activate.");
+            $out['status'] = 'no_items';
+            return $out;
+        }
+
+        foreach ($titles as $title) {
+            $key = $normalize($title);
+            if (!isset($cart_mappings[$key])) {
+                $out['skipped'][] = ['title' => $title, 'reason' => 'unknown_title'];
+                continue;
+            }
+            $cart_data = $cart_mappings[$key];
+            $cart_data['cin']                 = $wc->cin;
+            $cart_data['razorpay_payment_id'] = $order_id;
+            $cart_data['product_name']        = $wc->product_name;
+            $cart_data['clevel']              = $competition->clevel;
+            $cart_data['period_id']           = $competition->period_id;
+            $cart_data['comp_id']             = $competition->id;
+
+            // Idempotency: same cin + product + competition + item flags.
+            $check = [
+                'cin'          => $wc->cin,
+                'product_name' => $wc->product_name,
+                'clevel'       => $competition->clevel,
+                'period_id'    => $competition->period_id,
+            ];
+            foreach ($cart_data as $k => $v) {
+                if ($k === 'status') { continue; }
+                $check[$k] = $v;
+            }
+            try {
+                $exists = $this->db->get_where('new_cart', $check)->row();
+            } catch (\Throwable $e) {
+                $exists = null;
+            }
+            if (!empty($exists)) {
+                $out['skipped'][] = ['title' => $title, 'reason' => 'already_active'];
+                continue;
+            }
+            try {
+                $this->db->insert('new_cart', $cart_data);
+                $out['activated'][] = $title;
+            } catch (\Throwable $e) {
+                $out['failed'][] = ['title' => $title, 'error' => $e->getMessage()];
+                $this->log_line("ACTIVATE ".$order_id." [".$title."]: ERROR ".$e->getMessage());
+            }
+        }
+
+        $out['status'] = empty($out['failed']) ? 'ok' : 'partial';
+        $this->log_line("ACTIVATE ".$order_id.": ".json_encode($out));
+        return $out;
+    }
+
+    // Standalone endpoint for the monitor's "Activate" button.
+    public function activate($order_id = null)
+    {
+        if (empty($order_id)) { $order_id = $this->uri->segment(3); }
+        if (empty($order_id)) { $order_id = $this->input->get('order_id'); }
+        $order_id = trim((string)$order_id);
+        if ($order_id === '') {
+            return $this->json_out(['status' => 'error', 'message' => 'order_id required'], 400);
+        }
+        $result = $this->activate_cart($order_id);
+        return $this->json_out(['status' => 'ok', 'result' => $result]);
     }
 
     // ------------------------------------------------------------------ //
@@ -626,8 +821,10 @@ class Splitpay extends CI_Controller {
     // ------------------------------------------------------------------ //
     // Record the completed split into payment_split_prid + payment_split
     // (both are read by the dashboards). Guarded: never inserts twice.
+    // CIN flow (webhook_calls_cin): no prid, no school_amount -> writes
+    // payment_split only (verify2 parity); prid table needs a prid.
     // ------------------------------------------------------------------ //
-    private function record_split($wc, $legs, $makers_report)
+    private function record_split($wc, $legs, $makers_report, $flow = 'webhook_calls')
     {
         $tid = function ($key) use ($legs) {
             return isset($legs[$key]['transfer_id']) ? $legs[$key]['transfer_id'] : '';
@@ -654,19 +851,23 @@ class Splitpay extends CI_Controller {
         if ($maker_id === null || $maker_id === '') { $maker_id = '0'; }
 
         $now = date('Y-m-d H:i:s');
+        $is_cin = ($flow === 'webhook_calls_cin');
+        // CIN rows have no prid / school_amount columns - use safe defaults.
+        $prid_val   = $is_cin ? '' : $s(isset($wc->prid) ? $wc->prid : '');
+        $school_val = $is_cin ? '' : $s(isset($wc->school_amount) ? $wc->school_amount : '');
 
-        // ---------- payment_split_prid ----------
+        // ---------- payment_split_prid (prid flow only) ----------
         $exists = $this->db->get_where('payment_split_prid', ['payment_id' => $wc->payment_id])->row();
-        if (empty($exists)) {
+        if (empty($exists) && !$is_cin) {
             $inst = [
-                'prid'                  => $s($wc->prid),
+                'prid'                  => $prid_val,
                 'clevel'                => $s($wc->clevel),
                 'total_amount'          => $s($wc->total_amount),
                 'franchise_amount'      => $s($wc->franchise_amount),
                 'franchise_tranfer_id'  => $tid('franchise'),
                 'franchise_id'          => $franchise_id,
                 'franchise_gst'         => $s($wc->franchise_gst),
-                'school_amount'         => $s($wc->school_amount),
+                'school_amount'         => $school_val,
                 'payment_id'            => $s($wc->payment_id),
                 'aviansys_amount'       => $s($wc->aviansys_amount),
                 'aviansys_gst'          => $s($wc->aviansys_gst),
@@ -708,7 +909,7 @@ class Splitpay extends CI_Controller {
                 'franchise_tranfer_id'  => $tid('franchise'),
                 'franchise_id'          => $franchise_id,
                 'franchise_gst'         => $s($wc->franchise_gst),
-                'school_amount'         => $s($wc->school_amount),
+                'school_amount'         => $school_val,
                 'payment_id'            => $s($wc->payment_id),
                 'aviansys_amount'       => $s($wc->aviansys_amount),
                 'aviansys_gst'          => $s($wc->aviansys_gst),
@@ -837,6 +1038,7 @@ class Splitpay extends CI_Controller {
     // ================================================================== //
     // 5. DRY RUN  ->  /splitpay/dryRun/<order_id>   (or ?order_id=)
     //    Makes NO Razorpay API calls. Writes NOTHING to the DB.
+    //    Flow-aware: previews legs + cart activation for CIN orders too.
     //    This is the local test surface.
     // ================================================================== //
     public function dryRun($order_id = null)
@@ -848,12 +1050,15 @@ class Splitpay extends CI_Controller {
             return $this->json_out(['status' => 'error', 'message' => 'order_id required'], 400);
         }
 
-        $wc      = $this->db->get_where('webhook_calls', ['payment_id' => $order_id])->row();
+        $flow  = $this->detect_flow($order_id);
+        $wc    = $flow ? $flow['row'] : null;
+        $table = $flow ? $flow['table'] : null;
         $makers  = $this->split_makers($order_id, true); // dry_run = true -> no API, no writes
 
         $plan = [];
         if (!empty($wc)) {
-            $fr_total = (float)$wc->franchise_amount + (float)$wc->franchise_gst + (float)$wc->school_amount;
+            $school_amt = isset($wc->school_amount) ? (float)$wc->school_amount : 0.0;
+            $fr_total = (float)$wc->franchise_amount + (float)$wc->franchise_gst + $school_amt;
             if ($fr_total > 0 && !empty($wc->franchise_account_id)) { $plan['franchise'] = ['amount' => $fr_total, 'account' => $wc->franchise_account_id]; }
             $as_total = (float)$wc->associate_amount + (float)$wc->associate_gst;
             if ($as_total > 0 && !empty($wc->associate_account_id)) { $plan['associate'] = ['amount' => $as_total, 'account' => $wc->associate_account_id]; }
@@ -870,9 +1075,26 @@ class Splitpay extends CI_Controller {
         $plan_total = 0.0;
         foreach ($plan as $p) { $plan_total += (float)$p['amount']; }
 
+        // CIN flow: also preview cart items that would be activated (read-only).
+        $cart_preview = null;
+        if ($table === 'webhook_calls_cin' && !empty($wc)) {
+            $titles = [];
+            foreach ($this->db->get_where('makers_splits', ['order_id' => $order_id])->result() as $mr) {
+                if (!empty($mr->title)) { $titles[] = $mr->title; }
+            }
+            if (empty($titles)) {
+                foreach ($this->db->get_where('amount_cart', ['payment_id' => $order_id])->result() as $cr) {
+                    if (!empty($cr->title)) { $titles[] = $cr->title; }
+                }
+            }
+            $titles = array_values(array_unique($titles));
+            $cart_preview = ['cin' => $wc->cin, 'titles' => $titles, 'activated_rows' => $this->db->get_where('new_cart', ['cin' => $wc->cin, 'razorpay_payment_id' => $order_id])->num_rows(), 'pending_amount_cart' => $this->db->get_where('amount_cart', ['payment_id' => $order_id])->num_rows()];
+        }
+
         return $this->json_out([
             'status'        => 'dry_run',
             'order_id'      => $order_id,
+            'flow'          => $table,
             'webhook_calls' => $wc ? (array)$wc : null,
             'legs'          => $plan,
             'legs_total'    => $plan_total,
@@ -880,6 +1102,7 @@ class Splitpay extends CI_Controller {
             'makers_total'  => $maker_total,
             'grand_total'   => $plan_total + $maker_total,
             'paid_total'    => $wc ? (float)$wc->total_amount : null,
+            'cart_preview'  => $cart_preview,
         ]);
     }
 

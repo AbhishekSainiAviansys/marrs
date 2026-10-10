@@ -62,12 +62,50 @@ class Splitmonitor extends CI_Controller
             [date('Y-m-d H:i:s', $cutoff)]
         )->result();
 
-        // ---------- order ids from ALL split tables ----------
+        // ---------- order ids from ALL split tables + CIN webhooks ----------
         $order_ids = [];
         foreach ($webhook_calls as $r) { $order_ids[$r->payment_id] = true; }
         foreach ($split_prid as $r)    { $order_ids[$r->payment_id] = true; }
         foreach ($split as $r)         { $order_ids[$r->payment_id] = true; }
+
+        // ---------- pay2/CIN flow: webhook_calls_cin (same 24h window) ----------
+        $webhook_cin = [];
+        try {
+            $webhook_cin = $this->db->query(
+                "SELECT * FROM webhook_calls_cin WHERE inserted_date >= ? ORDER BY id DESC LIMIT 300",
+                [$since_day]
+            )->result();
+        } catch (\Exception $e) { $webhook_cin = []; }
+        foreach ($webhook_cin as $r) { $order_ids[$r->payment_id] = true; }
         $order_ids = array_slice(array_keys(array_filter($order_ids)), 0, 300);
+
+        // split lookup sets (per-order trace across BOTH flows)
+        $in_split_prid = [];
+        foreach ($split_prid as $r) { $in_split_prid[$r->payment_id] = true; }
+        $in_split = [];
+        foreach ($split as $r) { $in_split[$r->payment_id] = true; }
+
+        // pending cart items (amount_cart): group by payment_id for the Cart tab
+        $amount_cart = [];
+        try {
+            $amount_cart = $this->db->query(
+                "SELECT payment_id, cin, comp_id, COUNT(*) items, SUM(amount) amount, GROUP_CONCAT(DISTINCT title SEPARATOR ', ') titles FROM amount_cart GROUP BY payment_id, cin, comp_id ORDER BY payment_id DESC LIMIT 300"
+            )->result();
+        } catch (\Exception $e) { $amount_cart = []; }
+
+        // activated rows (new_cart) keyed by razorpay_payment_id for per-order flags
+        $active_map = [];
+        try {
+            $act_rows = $this->db->query(
+                "SELECT razorpay_payment_id, COUNT(*) n FROM new_cart WHERE razorpay_payment_id IS NOT NULL AND razorpay_payment_id <> '' GROUP BY razorpay_payment_id LIMIT 500"
+            )->result();
+            foreach ($act_rows as $a) { $active_map[$a->razorpay_payment_id] = (int)$a->n; }
+        } catch (\Exception $e) { /* leave empty */ }
+
+        // pending items keyed by payment_id (for per-order "activate?" flags)
+        $pending_map = [];
+        foreach ($amount_cart as $c) { $pending_map[$c->payment_id] = (int)$c->items; }
+
 
         $makers = [];
         if (!empty($order_ids)) {
@@ -188,6 +226,8 @@ class Splitmonitor extends CI_Controller
         foreach ($webhook_calls as $r) {
             $row = (array)$r;
             $row['in_split_prid'] = !empty($sp_by_order[$r->payment_id]);
+            $row['flow'] = 'prid';
+            $row['needs_split'] = empty($sp_by_order[$r->payment_id]) && empty($split_by_order[$r->payment_id]);
             $row['in_split']      = !empty($split_by_order[$r->payment_id]);
 
             $cins = isset($cin_map[$r->payment_id]) ? $cin_map[$r->payment_id] : [];
@@ -227,6 +267,19 @@ class Splitmonitor extends CI_Controller
             ];
         }
 
+        // enrich CIN rows: split/activation/action flags
+        $wc_cin_rows = [];
+        foreach ($webhook_cin as $r) {
+            $row = (array)$r;
+            $row['flow'] = 'cin';
+            $row['in_split'] = !empty($split_by_order[$r->payment_id]);
+            $row['needs_split'] = empty($split_by_order[$r->payment_id]);
+            $row['activated'] = isset($active_map[$r->payment_id]) ? $active_map[$r->payment_id] : 0;
+            $row['pending_items'] = isset($pending_map[$r->payment_id]) ? $pending_map[$r->payment_id] : 0;
+            $row['needs_activation'] = ($row['pending_items'] > 0 && $row['activated'] == 0);
+            $wc_cin_rows[] = $row;
+        }
+
         $summary = [
             'deliveries'        => $logs['webhook']['counts']['deliveries'],
             'verified'          => $logs['webhook']['counts']['verified'],
@@ -248,6 +301,11 @@ class Splitmonitor extends CI_Controller
             'wc_done'           => $status['done'],
             'splits_prid'       => count($split_prid),
             'splits'            => count($split),
+            'cin_orders'        => count($webhook_cin),
+            'cin_done'          => count(array_filter($webhook_cin, function ($r) { return (int)$r->status === 1; })),
+            'needs_split'       => count(array_filter($wc_rows, function ($r) { return !empty($r['needs_split']) && (int)$r['status'] !== 1; }))
+                                + count(array_filter($wc_cin_rows, function ($r) { return !empty($r['needs_split']) && (int)$r['status'] !== 1; })),
+            'needs_activation'  => count(array_filter($wc_cin_rows, function ($r) { return !empty($r['needs_activation']); })),
             'makers_paid'       => $makers_paid,
             'makers_unpaid'     => $makers_unpaid,
             'cins_total'        => $cins_total,
@@ -265,6 +323,8 @@ class Splitmonitor extends CI_Controller
             'split_prid'    => $split_prid,
             'split'         => $split,
             'makers'        => $maker_rows,
+            'webhook_cin'   => $wc_cin_rows,
+            'amount_cart'   => $amount_cart,
             'cins'          => $cin_rows,
             'logs'          => $logs,
         ]);
