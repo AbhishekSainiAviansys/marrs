@@ -180,6 +180,99 @@ class Splitpay extends CI_Controller {
         return $this->json_out(['status' => 'ok', 'result' => $result]);
     }
 
+    public function archive_amount_cart($order_id)
+    {
+        $order_id = trim((string)$order_id);
+        if ($order_id === '') {
+            throw new \InvalidArgumentException('order_id is required to archive amount_cart.');
+        }
+
+        $this->db->query(
+            "CREATE TABLE IF NOT EXISTS payment_success_items (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                order_id VARCHAR(100) NOT NULL,
+                item_index INT UNSIGNED NOT NULL,
+                items VARCHAR(255) NOT NULL DEFAULT '',
+                clevel VARCHAR(50) NOT NULL DEFAULT '',
+                cin VARCHAR(100) NOT NULL DEFAULT '',
+                product VARCHAR(255) NOT NULL DEFAULT '',
+                amount DECIMAL(12,2) NULL,
+                comp_id VARCHAR(50) NOT NULL DEFAULT '',
+                created_at DATETIME NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_payment_success_item (order_id, item_index),
+                KEY idx_payment_success_cin (cin),
+                KEY idx_payment_success_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+        $table_error = $this->db->error();
+        if (!empty($table_error['code'])) {
+            throw new \RuntimeException('Could not prepare payment_success_items storage: ' . $table_error['message']);
+        }
+
+        if (!$this->db->table_exists('amount_cart')) {
+            throw new \RuntimeException('amount_cart table does not exist; payment items could not be archived.');
+        }
+
+        $available = $this->db->list_fields('amount_cart');
+        if (!in_array('payment_id', $available, true)) {
+            throw new \RuntimeException('amount_cart.payment_id is missing; payment items could not be matched to the order.');
+        }
+
+        $source_fields = array_values(array_intersect(
+            ['id', 'title', 'items', 'clevel', 'cin', 'product_name', 'product', 'amount', 'comp_id'],
+            $available
+        ));
+        $this->db->select($source_fields)->where('payment_id', $order_id);
+        if (in_array('id', $source_fields, true)) {
+            $this->db->order_by('id', 'ASC');
+        }
+        $cart_rows = $this->db->get('amount_cart')->result_array();
+
+        $inserted = 0;
+        foreach ($cart_rows as $index => $row) {
+            $item = isset($row['title']) ? $row['title'] : (isset($row['items']) ? $row['items'] : '');
+            $product = !empty($row['product_name']) ? $row['product_name']
+                : (isset($row['product']) ? $row['product'] : (isset($row['title']) ? $row['title'] : ''));
+            if ($item === '' && $product !== '') {
+                $item = $product;
+            }
+            $record = [
+                'order_id' => $order_id,
+                'item_index' => $index,
+                'items' => (string)$item,
+                'clevel' => isset($row['clevel']) ? (string)$row['clevel'] : '',
+                'cin' => isset($row['cin']) ? (string)$row['cin'] : '',
+                'product' => (string)$product,
+                'amount' => isset($row['amount']) ? $row['amount'] : null,
+                'comp_id' => isset($row['comp_id']) ? (string)$row['comp_id'] : '',
+                'created_at' => date('Y-m-d H:i:s'),
+            ];
+
+            $this->db->query(
+                'INSERT INTO payment_success_items (order_id, item_index, items, clevel, cin, product, amount, comp_id, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE order_id = VALUES(order_id)',
+                array_values($record)
+            );
+            $insert_error = $this->db->error();
+            if (!empty($insert_error['code'])) {
+                throw new \RuntimeException('Could not archive amount_cart row for order ' . $order_id . ': ' . $insert_error['message']);
+            }
+            if ($this->db->affected_rows() > 0) {
+                $inserted++;
+            }
+        }
+
+        $summary = [
+            'order_id' => $order_id,
+            'items_found' => count($cart_rows),
+            'items_inserted' => $inserted,
+        ];
+        $this->log_line('CART ARCHIVE ' . $order_id . ': ' . json_encode($summary));
+        return $summary;
+    }
+
     // ------------------------------------------------------------------ //
     // Ensure students.fcm_token exists (idempotent, cached per request).
     // ------------------------------------------------------------------ //
@@ -328,6 +421,70 @@ class Splitpay extends CI_Controller {
         }
         $out['ok'] = true;
         return $out;
+    }
+
+    public static function razorpay_payments_for_day($day)
+    {
+        $timezone = new \DateTimeZone(date_default_timezone_get());
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', (string)$day, $timezone);
+        $date_errors = \DateTimeImmutable::getLastErrors();
+        if (!$date || ($date_errors && ($date_errors['warning_count'] || $date_errors['error_count']))
+            || $date->format('Y-m-d') !== (string)$day) {
+            return ['success' => false, 'error' => 'Date must be a valid YYYY-MM-DD value.'];
+        }
+
+        $from = $date->getTimestamp();
+        $to = $date->modify('+1 day')->getTimestamp() - 1;
+        $keys = self::razorpay_keys();
+        $payments = [];
+        $skip = 0;
+        $page_size = 100;
+        $max_pages = 1000;
+
+        for ($page = 0; $page < $max_pages; $page++) {
+            $query = http_build_query([
+                'from' => $from,
+                'to' => $to,
+                'count' => $page_size,
+                'skip' => $skip,
+            ]);
+            $ch = curl_init('https://api.razorpay.com/v1/payments?' . $query);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [$keys['auth_header']]);
+            $body = curl_exec($ch);
+            $http = (int)(curl_errno($ch) ? 0 : curl_getinfo($ch, CURLINFO_HTTP_CODE));
+            $curl_error = curl_errno($ch) ? curl_error($ch) : '';
+            curl_close($ch);
+
+            if ($curl_error !== '' || $http < 200 || $http >= 300) {
+                return [
+                    'success' => false,
+                    'error' => $curl_error !== '' ? ('Razorpay request failed: ' . $curl_error)
+                        : ('Razorpay returned HTTP ' . $http . ': ' . substr((string)$body, 0, 300)),
+                ];
+            }
+
+            $response = json_decode((string)$body, true);
+            if (!is_array($response) || !isset($response['items']) || !is_array($response['items'])) {
+                return ['success' => false, 'error' => 'Razorpay returned an invalid payments response.'];
+            }
+
+            $payments = array_merge($payments, $response['items']);
+            $received = count($response['items']);
+            if ($received < $page_size) {
+                return [
+                    'success' => true,
+                    'day' => $date->format('Y-m-d'),
+                    'from' => $from,
+                    'to' => $to,
+                    'payments' => $payments,
+                ];
+            }
+            $skip += $received;
+        }
+
+        return ['success' => false, 'error' => 'Razorpay payments exceeded the supported pagination limit for this day.'];
     }
 
     private function notify_student($token, $order_id, $cins)
@@ -558,6 +715,12 @@ class Splitpay extends CI_Controller {
 
         // Already done -> only top-up unpaid maker rows (never re-run aggregate legs).
         if ((int)$wc->status === 1) {
+            try {
+                $cart_archive = $this->archive_amount_cart($order_id);
+            } catch (\Throwable $e) {
+                $this->log_line("PROCESS ".$order_id.": cart archive failed: ".$e->getMessage());
+                return ['status' => 'error', 'order_id' => $order_id, 'message' => 'cart archive failed', 'error' => $e->getMessage()];
+            }
             $maker = $this->split_makers($order_id, false);
             $extra = [];
             if ($is_cin) {
@@ -565,7 +728,7 @@ class Splitpay extends CI_Controller {
                 $extra = $this->activate_cart($order_id);
             }
             $this->log_line("PROCESS ".$order_id." [".$table."]: already status=1. maker top-up: ".json_encode($maker).($extra ? " activation: ".json_encode($extra) : ""));
-            $out = ['status' => 'already_done', 'order_id' => $order_id, 'flow' => $table, 'makers' => $maker];
+            $out = ['status' => 'already_done', 'order_id' => $order_id, 'flow' => $table, 'makers' => $maker, 'cart_archive' => $cart_archive];
             if ($extra) { $out['activation'] = $extra; }
             return $out;
         }
@@ -583,6 +746,7 @@ class Splitpay extends CI_Controller {
         $report = ['status' => 'error', 'order_id' => $order_id, 'flow' => $table, 'legs' => []];
 
         try {
+            $report['cart_archive'] = $this->archive_amount_cart($order_id);
             $legs = $this->split_legs($wc);
             $report['legs'] = $legs;
             $report['makers'] = $this->split_makers($order_id, false);
@@ -1201,9 +1365,4 @@ class Splitpay extends CI_Controller {
         return $this->json_out(['status' => 'ok', 'result' => $result]);
     }
 }
-
-
-
-
-
 

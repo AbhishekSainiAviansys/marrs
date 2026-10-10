@@ -546,6 +546,24 @@ class Razorpay extends CI_Controller {
 
 	}
 
+    private function archivePaidAmountCart($order_id)
+    {
+        $order_id = trim((string)$order_id);
+        if ($order_id === '') {
+            return false;
+        }
+
+        try {
+            require_once APPPATH . 'controllers/Splitpay.php';
+            $splitpay = new Splitpay();
+            $splitpay->archive_amount_cart($order_id);
+            return true;
+        } catch (\Throwable $e) {
+            log_message('error', 'Razorpay success cart archive failed for ' . $order_id . ': ' . $e->getMessage());
+            return false;
+        }
+    }
+
 	/**
 	 * This is a function called when payment successfull,
 	 * and shows the success message
@@ -554,6 +572,10 @@ class Razorpay extends CI_Controller {
 	public function success()
 	{   
 	    $data = $this->session->userdata('payment_data');
+	    if (!empty($data['razorpay_order_id']) && !$this->archivePaidAmountCart($data['razorpay_order_id'])) {
+	        show_error('Payment succeeded, but the cart items could not be archived. The cart was retained; contact support.', 500);
+	        return;
+	    }
 	        
 	        //print_r($data);exit; 
 
@@ -2873,6 +2895,10 @@ class Razorpay extends CI_Controller {
 	public function success2()
 	{    
 	    $data = $this->session->userdata('payment_data');
+	    if (!empty($data['razorpay_order_id']) && !$this->archivePaidAmountCart($data['razorpay_order_id'])) {
+	        show_error('Payment succeeded, but the cart items could not be archived. The cart was retained; contact support.', 500);
+	        return;
+	    }
 	    if(!empty($this->session->userdata('primaryColor'))){
 	        $data['payment_data']= $this->session->userdata('payment_data');
 	        $this->load->view('cin_login/success', $data);
@@ -4027,6 +4053,10 @@ class Razorpay extends CI_Controller {
         $cin = $this->session->userdata('cinm');
         
 	    $data = $this->session->userdata('payment_data');
+	    if (!empty($data['razorpay_order_id']) && !$this->archivePaidAmountCart($data['razorpay_order_id'])) {
+	        show_error('Payment succeeded, but the cart items could not be archived. The cart was retained; contact support.', 500);
+	        return;
+	    }
 	    
 	    $paid_idd = $this->db->get_where('cin_list',array('cin' => $data['cin'] ))->row();
 	    

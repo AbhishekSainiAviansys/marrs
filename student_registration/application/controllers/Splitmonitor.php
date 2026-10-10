@@ -329,6 +329,15 @@ class Splitmonitor extends CI_Controller
             'paid_no_cin'       => $paid_no_cin,
         ];
 
+        $paid_cart_items = [];
+        if ($this->db->table_exists('payment_success_items')) {
+            $paid_cart_items = $this->db->where('created_at >=', $since_dt)
+                ->order_by('id', 'DESC')
+                ->limit(1000)
+                ->get('payment_success_items')
+                ->result_array();
+        }
+
         http_response_code(200);
         header('Content-Type: application/json');
         echo json_encode([
@@ -343,9 +352,127 @@ class Splitmonitor extends CI_Controller
             'makers'        => $maker_rows,
             'webhook_cin'   => $wc_cin_rows,
             'amount_cart'   => $amount_cart,
+            'paid_cart_items' => $paid_cart_items,
             'cins'          => $cin_rows,
             'logs'          => $logs,
         ]);
+    }
+
+    public function razorpay_payments()
+    {
+        if (strtoupper((string)$this->input->method(TRUE)) !== 'POST') {
+            return $this->output->set_status_header(405)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => 'POST is required.']));
+        }
+
+        $day = trim((string)$this->input->post('day'));
+        $parts = explode('-', $day);
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $day) || count($parts) !== 3
+            || !checkdate((int)$parts[1], (int)$parts[2], (int)$parts[0])) {
+            return $this->output->set_status_header(400)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => 'Choose a valid day in YYYY-MM-DD format.']));
+        }
+        $result = Splitpay::razorpay_payments_for_day($day);
+        if (empty($result['success'])) {
+            return $this->output->set_status_header(502)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => $result['error']]));
+        }
+
+        $this->db->query(
+            "CREATE TABLE IF NOT EXISTS razorpay_payments (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                payment_id VARCHAR(80) NOT NULL,
+                order_id VARCHAR(100) NOT NULL DEFAULT '',
+                status VARCHAR(40) NOT NULL DEFAULT '',
+                amount DECIMAL(14,2) NULL,
+                currency VARCHAR(12) NOT NULL DEFAULT '',
+                method VARCHAR(40) NOT NULL DEFAULT '',
+                captured TINYINT(1) NOT NULL DEFAULT 0,
+                contact VARCHAR(80) NOT NULL DEFAULT '',
+                email VARCHAR(190) NOT NULL DEFAULT '',
+                created_at DATETIME NULL,
+                razorpay_created_at BIGINT NULL,
+                payment_json LONGTEXT NOT NULL,
+                synced_at DATETIME NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_razorpay_payment_id (payment_id),
+                KEY idx_razorpay_order_id (order_id),
+                KEY idx_razorpay_created_at (razorpay_created_at),
+                KEY idx_razorpay_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+        $table_error = $this->db->error();
+        if (!empty($table_error['code'])) {
+            log_message('error', 'Splitmonitor could not create razorpay_payments: ' . $table_error['message']);
+            return $this->output->set_status_header(500)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => 'Could not prepare local Razorpay payment storage.']));
+        }
+
+        $synced = [];
+        foreach ($result['payments'] as $payment) {
+            if (empty($payment['id'])) {
+                return $this->output->set_status_header(502)
+                    ->set_content_type('application/json')
+                    ->set_output(json_encode(['success' => false, 'message' => 'Razorpay returned a payment without an ID; sync stopped.']));
+            }
+
+            $raw_json = json_encode($payment);
+            if ($raw_json === false) {
+                return $this->output->set_status_header(500)
+                    ->set_content_type('application/json')
+                    ->set_output(json_encode(['success' => false, 'message' => 'Could not encode a Razorpay payment for local storage.']));
+            }
+
+            $created_at = !empty($payment['created_at']) ? date('Y-m-d H:i:s', (int)$payment['created_at']) : null;
+            $record = [
+                'payment_id' => (string)$payment['id'],
+                'order_id' => isset($payment['order_id']) ? (string)$payment['order_id'] : '',
+                'status' => isset($payment['status']) ? (string)$payment['status'] : '',
+                'amount' => isset($payment['amount']) ? ((float)$payment['amount'] / 100) : null,
+                'currency' => isset($payment['currency']) ? (string)$payment['currency'] : '',
+                'method' => isset($payment['method']) ? (string)$payment['method'] : '',
+                'captured' => !empty($payment['captured']) ? 1 : 0,
+                'contact' => isset($payment['contact']) ? (string)$payment['contact'] : '',
+                'email' => isset($payment['email']) ? (string)$payment['email'] : '',
+                'created_at' => $created_at,
+                'razorpay_created_at' => isset($payment['created_at']) ? (int)$payment['created_at'] : null,
+                'payment_json' => $raw_json,
+                'synced_at' => date('Y-m-d H:i:s'),
+            ];
+
+            $this->db->query(
+                'INSERT INTO razorpay_payments
+                    (payment_id, order_id, status, amount, currency, method, captured, contact, email, created_at, razorpay_created_at, payment_json, synced_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    order_id = VALUES(order_id), status = VALUES(status), amount = VALUES(amount),
+                    currency = VALUES(currency), method = VALUES(method), captured = VALUES(captured),
+                    contact = VALUES(contact), email = VALUES(email), created_at = VALUES(created_at),
+                    razorpay_created_at = VALUES(razorpay_created_at), payment_json = VALUES(payment_json),
+                    synced_at = VALUES(synced_at)',
+                array_values($record)
+            );
+            $insert_error = $this->db->error();
+            if (!empty($insert_error['code'])) {
+                log_message('error', 'Splitmonitor Razorpay sync failed for ' . $record['payment_id'] . ': ' . $insert_error['message']);
+                return $this->output->set_status_header(500)
+                    ->set_content_type('application/json')
+                    ->set_output(json_encode(['success' => false, 'message' => 'Local database write failed while syncing Razorpay payments.']));
+            }
+            $synced[] = $payment;
+        }
+
+        return $this->output->set_content_type('application/json')
+            ->set_output(json_encode([
+                'success' => true,
+                'day' => $result['day'],
+                'synced_count' => count($synced),
+                'payments' => $synced,
+            ]));
     }
 
     public function order_detail()

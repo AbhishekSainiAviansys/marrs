@@ -123,6 +123,7 @@ h2.sec{ font-size:15px; margin:18px 4px 8px; }
     <button data-tab="splits" onclick="showTab('splits')">Splits <span class="cnt" id="t-sp">0</span></button>
     <button data-tab="makers" onclick="showTab('makers')">Maker Splits <span class="cnt" id="t-mk">0</span></button>
     <button data-tab="cins" onclick="showTab('cins')">CIN &amp; Registration <span class="cnt" id="t-cin">0</span></button>
+    <button data-tab="razorpay" onclick="showTab('razorpay')">Razorpay Payments</button>
     <button data-tab="errors" onclick="showTab('errors')">Errors <span class="cnt" id="t-err">0</span></button>
     <button data-tab="keys" onclick="showTab('keys')">Keys</button>
 </nav>
@@ -160,6 +161,8 @@ h2.sec{ font-size:15px; margin:18px 4px 8px; }
         <section><div class="tablewrap"><table id="sp-table"></table></div></section>
         <h2 class="sec">Split records — payment_split</h2>
         <section><div class="tablewrap"><table id="s-table"></table></div></section>
+        <h2 class="sec">Archived paid cart items (saved before amount_cart cleanup)</h2>
+        <section><div class="tablewrap"><table id="paid-items-table"></table></div></section>
     </section>
 
     <section id="tab-makers" class="tab">
@@ -170,6 +173,17 @@ h2.sec{ font-size:15px; margin:18px 4px 8px; }
     <section id="tab-cins" class="tab">
         <h2 class="sec">CIN &amp; registration (created from the webhook after payment) — 🟢 CIN + notified · 🟠 CIN, no device token · 🔴 paid but NO CIN</h2>
         <section><div class="tablewrap"><table id="cin-table"></table></div></section>
+    </section>
+
+    <section id="tab-razorpay" class="tab">
+        <h2 class="sec">Razorpay payments for a selected day</h2>
+        <p class="lookup-warning">Fetch makes a read-only Razorpay API request, then upserts the returned payment records and full Razorpay payload into the local database. Contact and payment metadata are sensitive.</p>
+        <form class="lookup-form" id="razorpay-sync-form" onsubmit="syncRazorpayPayments(event)">
+            <input id="razorpay-sync-day" type="date" value="<?php echo html_escape(date('Y-m-d')); ?>" required>
+            <button id="razorpay-sync-button" type="submit">Fetch and save from Razorpay</button>
+        </form>
+        <p id="razorpay-sync-status" class="lookup-note" aria-live="polite">Choose a day and fetch to import or refresh its Razorpay payments.</p>
+        <section><div class="tablewrap"><table id="razorpay-payment-table"></table></div></section>
     </section>
 
     <section id="tab-errors" class="tab">
@@ -381,6 +395,16 @@ function render(d){
     var sCols = spCols.filter(function(c){ return c.l !== 'prid'; });
     sCols.splice(1, 0, {l:'cin', f:function(r){return r.cin||'-';}});
     table('s-table', sCols, d.split, function(r){ return r.maker_transfer_id?'':'row-warn'; });
+    table('paid-items-table', [
+        {l:'order id', f:function(r){return r.order_id;}},
+        {l:'item', f:function(r){return r.items;}},
+        {l:'level', f:function(r){return r.clevel;}},
+        {l:'CIN', f:function(r){return r.cin;}},
+        {l:'product', f:function(r){return r.product;}},
+        {l:'amount', f:function(r){return money(r.amount);}},
+        {l:'competition id', f:function(r){return r.comp_id;}},
+        {l:'archived at', f:function(r){return r.created_at;}}
+    ], d.paid_cart_items || []);
 
     table('mk-table', [
         {l:'id', f:function(r){return r.id;}}, {l:'order id', f:function(r){return r.order_id||'-';}},
@@ -553,6 +577,60 @@ function renderOrderDetails(data){
     html += '<p class="lookup-note">'+(data.found ? 'Internal payment records found.' : 'No internal records found; showing Razorpay lookup result only.')+' This lookup does not create or retry transfers.</p>';
     results.innerHTML = html;
     showToast('Order details loaded for ' + data.order_id, false);
+}
+function formatRazorpayTime(timestamp){
+    var value = parseInt(timestamp, 10);
+    return value ? new Date(value * 1000).toLocaleString() : '—';
+}
+function renderRazorpayPayments(payments){
+    var tableElement = document.getElementById('razorpay-payment-table');
+    if (!payments || !payments.length) {
+        tableElement.innerHTML = '<tr><th>Razorpay payments</th></tr><tr><td class="empty">No payments were returned for this day.</td></tr>';
+        return;
+    }
+    var html = '<tr><th>Payment ID</th><th>Order ID</th><th>Status</th><th>Amount</th><th>Method</th><th>Created</th><th>Captured</th><th>Refunded</th><th>Contact</th><th>Email</th><th>Bank / wallet / VPA</th><th>Error</th><th>Full details</th></tr>';
+    payments.forEach(function(payment){
+        var raw = JSON.stringify(payment, null, 2);
+        var source = payment.bank || payment.wallet || payment.vpa || '';
+        var rowClass = payment.status === 'captured' ? 'row-ok' : (payment.status === 'failed' ? 'row-bad' : 'row-warn');
+        html += '<tr class="'+rowClass+'">' +
+            '<td>'+esc(payment.id)+'</td><td>'+esc(payment.order_id)+'</td><td>'+esc(payment.status)+'</td>' +
+            '<td>'+esc(payment.amount === undefined ? '—' : money(parseFloat(payment.amount) / 100))+' '+esc(payment.currency)+'</td>' +
+            '<td>'+esc(payment.method)+'</td><td>'+esc(formatRazorpayTime(payment.created_at))+'</td>' +
+            '<td>'+esc(payment.captured ? 'yes' : 'no')+'</td>' +
+            '<td>'+esc(payment.amount_refunded === undefined ? '—' : money(parseFloat(payment.amount_refunded) / 100))+'</td>' +
+            '<td>'+esc(payment.contact)+'</td><td>'+esc(payment.email)+'</td><td>'+esc(source)+'</td>' +
+            '<td class="wrap">'+esc(payment.error_description || payment.error_code || '—')+'</td>' +
+            '<td><details><summary>View payload</summary><pre style="white-space:pre-wrap;max-width:420px;max-height:220px;overflow:auto">'+esc(raw)+'</pre></details></td></tr>';
+    });
+    tableElement.innerHTML = html;
+    filterTables();
+}
+function syncRazorpayPayments(event){
+    event.preventDefault();
+    var day = document.getElementById('razorpay-sync-day').value;
+    var button = document.getElementById('razorpay-sync-button');
+    var status = document.getElementById('razorpay-sync-status');
+    if (!day) {
+        status.textContent = 'Select a day to fetch.';
+        return;
+    }
+    button.disabled = true;
+    status.textContent = 'Fetching Razorpay payments and saving them locally…';
+    var body = new URLSearchParams();
+    body.set('day', day);
+    requestJson(BASE + '/razorpay_payments', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},
+        body: body.toString()
+    }).then(function(data){
+        renderRazorpayPayments(data.payments || []);
+        status.textContent = 'Saved ' + data.synced_count + ' Razorpay payment record(s) for ' + data.day + '. Existing payment IDs were refreshed.';
+        showToast(status.textContent, false);
+    }).catch(function(error){
+        status.textContent = 'Razorpay sync failed: ' + error.message;
+        showToast(status.textContent, true);
+    }).finally(function(){ button.disabled = false; });
 }
 </script>
 </body>
