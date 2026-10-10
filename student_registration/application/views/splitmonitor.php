@@ -45,6 +45,14 @@ tr.row-warn td{ background:rgba(180,83,9,.07); }
 .empty{ padding:16px; color:var(--muted); }
 .keys{ display:flex; gap:24px; padding:6px 14px 14px; flex-wrap:wrap; }
 .keys b{ font-family:ui-monospace,Menlo,Consolas,monospace; }
+.tabs{ display:flex; flex-wrap:wrap; gap:4px; padding:10px 16px 0; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:57px; z-index:4; }
+.tabs button{ background:transparent; color:var(--muted); border:0; border-bottom:2px solid transparent; border-radius:6px 6px 0 0; padding:8px 14px; font-weight:600; }
+.tabs button.active{ color:var(--primary); border-bottom-color:var(--primary); }
+.tabs button .cnt{ background:var(--line); color:var(--text); border-radius:999px; padding:0 7px; font-size:11px; margin-left:4px; }
+.tabs button.active .cnt{ background:rgba(47,107,240,.15); color:var(--primary); }
+.tab{ display:none; }
+.tab.active{ display:block; }
+h2.sec{ font-size:15px; margin:18px 4px 8px; }
 </style>
 </head>
 <body>
@@ -59,38 +67,48 @@ tr.row-warn td{ background:rgba(180,83,9,.07); }
         <button class="ghost" onclick="document.body.dataset.theme=document.body.dataset.theme==='light'?'dark':'light'">Theme</button>
     </div>
 </header>
+<nav class="tabs">
+    <button data-tab="overview" class="active" onclick="showTab('overview')">Overview</button>
+    <button data-tab="webhook" onclick="showTab('webhook')">Webhook Calls <span class="cnt" id="t-wc">0</span></button>
+    <button data-tab="splits" onclick="showTab('splits')">Splits <span class="cnt" id="t-sp">0</span></button>
+    <button data-tab="makers" onclick="showTab('makers')">Maker Splits <span class="cnt" id="t-mk">0</span></button>
+    <button data-tab="errors" onclick="showTab('errors')">Errors <span class="cnt" id="t-err">0</span></button>
+    <button data-tab="keys" onclick="showTab('keys')">Keys</button>
+</nav>
 <main>
-    <div class="cards" id="cards"></div>
+    <section id="tab-overview" class="tab active">
+        <div class="cards" id="cards"></div>
+        <h2 class="sec">Errors &amp; webhook setup problems</h2>
+        <section><div id="errors"></div></section>
+        <h2 class="sec">Razorpay keys</h2>
+        <section><div class="keys" id="keys"></div></section>
+    </section>
 
-    <details open>
-        <summary>Errors &amp; webhook setup problems <span class="badge" id="err-badge">…</span></summary>
-        <div id="errors"></div>
-    </details>
+    <section id="tab-webhook" class="tab">
+        <h2 class="sec">Webhook calls (webhook_calls) — trace shows which split tables hold each order</h2>
+        <section><div class="tablewrap"><table id="wc-table"></table></div></section>
+    </section>
 
-    <details open>
-        <summary>Webhook calls (webhook_calls) <span class="badge" id="wc-badge">…</span></summary>
-        <div class="tablewrap"><table id="wc-table"></table></div>
-    </details>
+    <section id="tab-splits" class="tab">
+        <h2 class="sec">Split records — payment_split_prid</h2>
+        <section><div class="tablewrap"><table id="sp-table"></table></div></section>
+        <h2 class="sec">Split records — payment_split</h2>
+        <section><div class="tablewrap"><table id="s-table"></table></div></section>
+    </section>
 
-    <details>
-        <summary>Split records — payment_split_prid <span class="badge" id="sp-badge">…</span></summary>
-        <div class="tablewrap"><table id="sp-table"></table></div>
-    </details>
+    <section id="tab-makers" class="tab">
+        <h2 class="sec">Maker splits (makers_splits) — unpaid rows show the exact reason</h2>
+        <section><div class="tablewrap"><table id="mk-table"></table></div></section>
+    </section>
 
-    <details>
-        <summary>Split records — payment_split <span class="badge" id="s-badge">…</span></summary>
-        <div class="tablewrap"><table id="s-table"></table></div>
-    </details>
+    <section id="tab-errors" class="tab">
+        <div id="errors-full"></div>
+    </section>
 
-    <details open>
-        <summary>Maker splits (makers_splits) <span class="badge" id="mk-badge">…</span></summary>
-        <div class="tablewrap"><table id="mk-table"></table></div>
-    </details>
-
-    <details>
-        <summary>Razorpay keys (from credentials table) <span class="badge" id="keys-badge">…</span></summary>
-        <div class="keys" id="keys"></div>
-    </details>
+    <section id="tab-keys" class="tab">
+        <h2 class="sec">Razorpay keys (from credentials table)</h2>
+        <section><div class="keys" id="keys-full"></div></section>
+    </section>
 </main>
 <script>
 var BASE = <?php echo json_encode(rtrim(base_url(), '/').'/index.php/splitmonitor'); ?>;
@@ -144,15 +162,19 @@ function render(d){
         card(s.makers_unpaid, 'makers UNPAID', s.makers_unpaid?'bad':'');
 
     var totalErr = s.splitpay_errors + s.invalid_signature + s.no_signature + s.delegate_failed + s.on_hold_errors + s.php_errors;
-    document.getElementById('err-badge').textContent = totalErr + ' errors';
-    document.getElementById('err-badge').className = 'badge ' + (totalErr ? 'bad' : 'ok');
-    document.getElementById('errors').innerHTML =
-        errBlock('Splitpay engine errors (logs/splitpay.log)', false, d.logs.splitpay.errors) +
-        errBlock('Webhook delivery problems (logs/webhook.log)', true, d.logs.webhook.errors) +
-        errBlock('PHP errors (error_log)', false, d.logs.php.errors) ||
-        '<div class="empty">no errors in the last 24h</div>';
 
-    document.getElementById('wc-badge').textContent = (s.wc_pending+s.wc_processing+s.wc_done) + ' rows';
+    var errHtml = errBlock('Splitpay engine errors (logs/splitpay.log)', false, d.logs.splitpay.errors) +
+        errBlock('Webhook delivery problems (logs/webhook.log)', true, d.logs.webhook.errors) +
+        errBlock('PHP errors (error_log)', false, d.logs.php.errors);
+    var emptyErr = '<div class="empty">no errors in the last 24h</div>';
+    document.getElementById('errors').innerHTML = errHtml || emptyErr;
+    document.getElementById('errors-full').innerHTML = errHtml || emptyErr;
+    document.getElementById('t-err').textContent = totalErr;
+
+    document.getElementById('t-wc').textContent = d.webhook_calls.length;
+    document.getElementById('t-sp').textContent = (d.split_prid.length + d.split.length);
+    document.getElementById('t-mk').textContent = d.makers.length + (s.makers_unpaid ? ' !'+s.makers_unpaid : '');
+
     table('wc-table', [
         {l:'id', f:function(r){return r.id;}}, {l:'order id', f:function(r){return r.payment_id;}},
         {l:'prid', f:function(r){return r.prid;}}, {l:'name', f:function(r){return r.name;}},
@@ -163,8 +185,13 @@ function render(d){
         {l:'aviansys', f:function(r){return r.aviansys_amount+' +gst '+r.aviansys_gst;}},
         {l:'mgmt / gst', f:function(r){return r.management_amount+' / '+r.marrs_gst;}},
         {l:'maker total', f:function(r){return r.total_maker_amount;}},
-        {l:'MaRRS bal', f:function(r){return r.MaRRS_bal;}},
         {l:'status', f:function(r){return ['PENDING','PROCESSING','DONE'][parseInt(r.status)||0];}},
+        {l:'trace', f:function(r){
+            var t=['wc'];
+            if (r.in_split_prid) t.push('split_prid');
+            if (r.in_split) t.push('split');
+            return t.join(' + ');
+        }},
         {l:'inserted', f:function(r){return (r.inserted_date||'')+' '+(r.inserted_time||'');}},
         {l:'paid at', f:function(r){return r.date_of_payment;}}
     ], d.webhook_calls, function(r){ return parseInt(r.status)===0?'row-warn':''; });
@@ -182,35 +209,35 @@ function render(d){
         {l:'maker trf', f:function(r){return r.maker_transfer_id||'-';}},
         {l:'paid at', f:function(r){return r.date_of_payment;}}
     ];
-    document.getElementById('sp-badge').textContent = d.split_prid.length + ' rows';
     table('sp-table', spCols, d.split_prid, function(r){ return r.maker_transfer_id?'':'row-warn'; });
-    document.getElementById('s-badge').textContent = d.split.length + ' rows';
     var sCols = spCols.filter(function(c){ return c.l !== 'prid'; });
     sCols.splice(1, 0, {l:'cin', f:function(r){return r.cin||'-';}});
     table('s-table', sCols, d.split, function(r){ return r.maker_transfer_id?'':'row-warn'; });
 
-    document.getElementById('mk-badge').textContent = d.makers.length + ' rows / ' + s.makers_unpaid + ' unpaid';
     table('mk-table', [
         {l:'id', f:function(r){return r.id;}}, {l:'order id', f:function(r){return r.order_id||'-';}},
         {l:'title', f:function(r){return r.title;}}, {l:'maker id', f:function(r){return r.maker_id;}},
         {l:'price', f:function(r){return r.price;}},
         {l:'transaction_id', f:function(r){return r.transaction_id||'-';}},
-        {l:'state', f:function(r){
-            if (r.transaction_id) return 'PAID';
-            return (parseFloat(r.price)>0 && r.order_id) ? 'UNPAID' : 'n/a';
-        }}
-    ], d.makers, function(r){
-        if (r.transaction_id) return '';
-        return (parseFloat(r.price)>0 && r.order_id) ? 'row-bad' : '';
-    });
+        {l:'state', f:function(r){ return r.state==='paid' ? 'PAID' : 'UNPAID'; }},
+        {l:'reason (why not transferred)', wrap:true, f:function(r){return r.reason||'';}}
+    ], d.makers, function(r){ return r.state==='paid' ? '' : 'row-bad'; });
 
     var k = d.keys;
-    document.getElementById('keys-badge').textContent = k.in_credentials ? 'from credentials table' : 'FALLBACK (row missing!)';
-    document.getElementById('keys-badge').className = 'badge ' + (k.in_credentials ? 'ok' : 'bad');
-    document.getElementById('keys').innerHTML =
-        '<div>source: <b>'+esc(k.source)+'</b></div>' +
+    var keysHtml = '<div>source: <b>'+esc(k.source)+'</b> '+(k.in_credentials?'<span class="badge ok">credentials table</span>':'<span class="badge bad">FALLBACK (row missing!)</span>')+'</div>' +
         '<div>key id: <b>'+esc(k.key_id_masked)+'</b></div>' +
         '<div>secret: <b>'+esc(k.secret_masked)+'</b></div>';
+    document.getElementById('keys').innerHTML = keysHtml;
+    document.getElementById('keys-full').innerHTML = keysHtml;
+}
+
+function showTab(name){
+    var tabs = document.querySelectorAll('.tab');
+    for (var i=0;i<tabs.length;i++){ tabs[i].classList.remove('active'); }
+    var btns = document.querySelectorAll('.tabs button');
+    for (var j=0;j<btns.length;j++){ btns[j].classList.remove('active'); }
+    document.getElementById('tab-'+name).classList.add('active');
+    document.querySelector('.tabs button[data-tab="'+name+'"]').classList.add('active');
 }
 
 function load(){

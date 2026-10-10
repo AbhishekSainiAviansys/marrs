@@ -62,20 +62,60 @@ class Splitmonitor extends CI_Controller
             [date('Y-m-d H:i:s', $cutoff)]
         )->result();
 
-        // ---------- makers for those orders ----------
+        // ---------- order ids from ALL split tables ----------
         $order_ids = [];
         foreach ($webhook_calls as $r) { $order_ids[$r->payment_id] = true; }
         foreach ($split_prid as $r)    { $order_ids[$r->payment_id] = true; }
+        foreach ($split as $r)         { $order_ids[$r->payment_id] = true; }
         $order_ids = array_slice(array_keys(array_filter($order_ids)), 0, 300);
 
         $makers = [];
         if (!empty($order_ids)) {
             $in  = implode(',', array_fill(0, count($order_ids), '?'));
             $makers = $this->db->query(
-                "SELECT * FROM makers_splits WHERE order_id IN ($in) ORDER BY id DESC LIMIT 300",
+                "SELECT * FROM makers_splits WHERE order_id IN ($in) ORDER BY id DESC LIMIT 500",
                 $order_ids
             )->result();
         }
+
+        // ---------- per-order trace: which tables have this order ----------
+        $wc_by_order   = [];
+        foreach ($webhook_calls as $r) { $wc_by_order[$r->payment_id] = $r; }
+        $sp_by_order   = [];
+        foreach ($split_prid as $r)    { $sp_by_order[$r->payment_id] = true; }
+        $split_by_order = [];
+        foreach ($split as $r)         { $split_by_order[$r->payment_id] = true; }
+
+        // ---------- per-maker diagnostic: WHY was it (not) transferred ----------
+        $maker_rows = [];
+        foreach ($makers as $m) {
+            $reason = '';
+            $state  = 'paid';
+            if (!empty($m->transaction_id)) {
+                $state = 'paid';
+            } else {
+                $state = 'unpaid';
+                $maker = $this->db->get_where('material_maker', ['material_maker_id' => $m->maker_id])->row();
+                if (empty($m->order_id)) {
+                    $reason = 'order_id empty (orphan row - never linked to an order)';
+                } elseif (empty($maker) || empty($maker->razorpay_id)) {
+                    $reason = 'material_maker / razorpay_id missing (maker_id ' . $m->maker_id . ')';
+                } elseif ((float)$m->price <= 0) {
+                    $reason = 'price is 0 - nothing to transfer';
+                } elseif (empty($wc_by_order[$m->order_id])) {
+                    $reason = 'no webhook_calls row for this order - Splitpay::process never ran';
+                } elseif ((int)$wc_by_order[$m->order_id]->status !== 1) {
+                    $reason = 'webhook_calls status=' . $wc_by_order[$m->order_id]->status . ' (not processed) - Splitpay::process did not complete';
+                } else {
+                    $reason = 'order processed but this row still unpaid - re-run splitpay/retry';
+                }
+            }
+            $row = (array)$m;
+            $row['state']  = $state;
+            $row['reason'] = $reason;
+            $maker_rows[]  = $row;
+        }
+
 
         // ---------- log scans ----------
         $logs = [
@@ -101,14 +141,24 @@ class Splitmonitor extends CI_Controller
             else { $status['pending']++; }
         }
         $makers_paid = 0; $makers_unpaid = 0;
-        foreach ($makers as $m) {
-            if (!empty($m->transaction_id)) { $makers_paid++; } else { $makers_unpaid++; }
+        foreach ($maker_rows as $m) {
+            if ($m['state'] === 'paid') { $makers_paid++; } else { $makers_unpaid++; }
+        }
+
+        // enrich webhook_calls rows with an order trace
+        $wc_rows = [];
+        foreach ($webhook_calls as $r) {
+            $row = (array)$r;
+            $row['in_split_prid'] = !empty($sp_by_order[$r->payment_id]);
+            $row['in_split']      = !empty($split_by_order[$r->payment_id]);
+            $wc_rows[] = $row;
         }
 
         $summary = [
             'deliveries'        => $logs['webhook']['counts']['deliveries'],
             'verified'          => $logs['webhook']['counts']['verified'],
             'invalid_signature' => $logs['webhook']['counts']['invalid'],
+            'no_signature'      => $logs['webhook']['counts']['no_signature'],
             'on_hold_errors'    => $logs['webhook']['counts']['on_hold'],
             'delegate_failed'   => $logs['webhook']['counts']['delegate_failed'],
             'splitpay_errors'   => $logs['splitpay']['counts']['errors'],
@@ -129,10 +179,10 @@ class Splitmonitor extends CI_Controller
             'window_hours'  => 24,
             'summary'       => $summary,
             'keys'          => $keys_status,
-            'webhook_calls' => $webhook_calls,
+            'webhook_calls' => $wc_rows,
             'split_prid'    => $split_prid,
             'split'         => $split,
-            'makers'        => $makers,
+            'makers'        => $maker_rows,
             'logs'          => $logs,
         ]);
     }
