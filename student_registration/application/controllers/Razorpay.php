@@ -4491,7 +4491,9 @@ class Razorpay extends CI_Controller {
             	    $who = 0;
             	    $pieces = explode("S", $student->school_code);
             	    
-            	        foreach($cart_data as $row){
+           	    // If the webhook (Splitpay) already created CINs for this order, skip re-creating (idempotency).
+           	    $cin_exists = $this->db->get_where('product_purchase', array('prid' => $_SESSION['prid'], 'payment_id' => $order_id))->row();
+           	        foreach(($cin_exists ? array() : $cart_data) as $row){
                     	        
                     	       // echo '<pre>';
                     	       // print_r($student->school_code);

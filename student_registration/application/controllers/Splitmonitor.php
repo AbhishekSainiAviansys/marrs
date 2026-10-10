@@ -78,6 +78,42 @@ class Splitmonitor extends CI_Controller
             )->result();
         }
 
+        // ---------- CINs created per order (from product_purchase.cin - the
+        // CIN string; product_name is the product label, NOT the CIN) ----------
+        $cin_map = [];   // order_id => [cin, ...]
+        $prid_set = [];
+        if (!empty($order_ids)) {
+            $in  = implode(',', array_fill(0, count($order_ids), '?'));
+            $pp = $this->db->query(
+                "SELECT payment_id, prid, cin FROM product_purchase WHERE payment_id IN ($in) AND cin IS NOT NULL AND cin <> '' ORDER BY id ASC",
+                $order_ids
+            )->result();
+            foreach ($pp as $p) {
+                $cin_map[$p->payment_id][] = $p->cin;
+                if (!empty($p->prid)) { $prid_set[$p->prid] = true; }
+            }
+        }
+        // student fcm_token per prid (has the student opted a device in?)
+        // NOTE: students.fcm_token may not exist on older DBs (Splitpay adds
+        // it lazily); probe first so data() NEVER 500s.
+        $fcm_by_prid = [];
+        foreach ($webhook_calls as $r) { if (!empty($r->prid)) { $prid_set[$r->prid] = true; } }
+        if (!empty($prid_set)) {
+            try {
+                $dbn = $this->db->database;
+                $has_fcm = (int)$this->db->query(
+                    "SELECT COUNT(*) n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME='students' AND COLUMN_NAME='fcm_token'",
+                    [$dbn]
+                )->row()->n;
+                if ($has_fcm) {
+                    $prids = array_slice(array_keys($prid_set), 0, 300);
+                    $inq  = implode(',', array_fill(0, count($prids), '?'));
+                    $stu = $this->db->query("SELECT PRID, fcm_token FROM students WHERE PRID IN ($inq)", $prids)->result();
+                    foreach ($stu as $s) { $fcm_by_prid[$s->PRID] = !empty($s->fcm_token); }
+                }
+            } catch (\Throwable $e) { /* leave map empty */ }
+        }
+
         // ---------- per-order trace: which tables have this order ----------
         $wc_by_order   = [];
         foreach ($webhook_calls as $r) { $wc_by_order[$r->payment_id] = $r; }
@@ -145,13 +181,50 @@ class Splitmonitor extends CI_Controller
             if ($m['state'] === 'paid') { $makers_paid++; } else { $makers_unpaid++; }
         }
 
-        // enrich webhook_calls rows with an order trace
+        // enrich webhook_calls rows with an order trace + CIN count + reconciliation
         $wc_rows = [];
+        $cin_rows = [];
+        $cins_total = 0; $paid_no_cin = 0;
         foreach ($webhook_calls as $r) {
             $row = (array)$r;
             $row['in_split_prid'] = !empty($sp_by_order[$r->payment_id]);
             $row['in_split']      = !empty($split_by_order[$r->payment_id]);
+
+            $cins = isset($cin_map[$r->payment_id]) ? $cin_map[$r->payment_id] : [];
+            $row['cin_count'] = count($cins);
+            $cins_total += count($cins);
+
+            // reconciliation: total vs (allocated transfers + retained platform amount)
+            $allocated = (float)$r->franchise_amount + (float)$r->franchise_gst + (float)$r->school_amount
+                + (float)$r->associate_amount + (float)$r->associate_gst
+                + (float)$r->crm_fix + (float)$r->it_fix
+                + (float)$r->aviansys_amount + (float)$r->aviansys_gst
+                + (float)$r->management_amount + (float)$r->marrs_gst
+                + (float)$r->total_maker_amount;
+            $retained = (float)$r->MaRRS_bal + (float)$r->razpay_service;
+            $gap = round((float)$r->total_amount - ($allocated + $retained), 2);
+            $row['recon_gap'] = $gap;
+            $row['recon_ok']  = (abs($gap) < 1);
+
+            $has_token = !empty($fcm_by_prid[$r->prid]);
+            $row['has_token'] = $has_token;
+
+            // paid but no CIN = the failure we guard against
+            if ((int)$r->status === 1 && count($cins) === 0) { $paid_no_cin++; }
             $wc_rows[] = $row;
+
+            $cin_rows[] = [
+                'order_id'   => $r->payment_id,
+                'prid'       => $r->prid,
+                'name'       => $r->name,
+                'total'      => $r->total_amount,
+                'status'     => (int)$r->status,
+                'cin_count'  => count($cins),
+                'cins'       => array_slice($cins, 0, 8),
+                'has_token'  => $has_token,
+                'recon_gap'  => $gap,
+                'recon_ok'   => (abs($gap) < 1),
+            ];
         }
 
         $summary = [
@@ -177,6 +250,8 @@ class Splitmonitor extends CI_Controller
             'splits'            => count($split),
             'makers_paid'       => $makers_paid,
             'makers_unpaid'     => $makers_unpaid,
+            'cins_total'        => $cins_total,
+            'paid_no_cin'       => $paid_no_cin,
         ];
 
         http_response_code(200);
@@ -190,6 +265,7 @@ class Splitmonitor extends CI_Controller
             'split_prid'    => $split_prid,
             'split'         => $split,
             'makers'        => $maker_rows,
+            'cins'          => $cin_rows,
             'logs'          => $logs,
         ]);
     }

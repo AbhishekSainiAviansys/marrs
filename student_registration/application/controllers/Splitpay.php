@@ -180,6 +180,205 @@ class Splitpay extends CI_Controller {
         return $this->json_out(['status' => 'ok', 'result' => $result]);
     }
 
+    // ------------------------------------------------------------------ //
+    // Ensure students.fcm_token exists (idempotent, cached per request).
+    // ------------------------------------------------------------------ //
+    private function ensure_students_fcm_column()
+    {
+        static $done = false;
+        if ($done) { return; }
+        $done = true;
+        try {
+            $db = $this->db->database;
+            $has = $this->db->query(
+                "SELECT COUNT(*) n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME='students' AND COLUMN_NAME='fcm_token'",
+                [$db]
+            )->row()->n;
+            if (!(int)$has) {
+                $this->db->query("ALTER TABLE students ADD fcm_token VARCHAR(255) NULL");
+                $this->log_line("CIN: added students.fcm_token column");
+            }
+        } catch (\Throwable $e) {
+            $this->log_line("CIN: ensure fcm_token column failed: ".$e->getMessage());
+        }
+    }
+
+    // ================================================================== //
+    // CIN CREATION (pay3 flow) - idempotent, runs from the webhook.
+    // Ported from Razorpay::verify3() so CINs are created reliably
+    // server-side on payment success (not only in the browser redirect).
+    // ================================================================== //
+    public function create_cins($order_id)
+    {
+        $this->ensure_students_fcm_column();
+
+        $wc = $this->db->get_where('webhook_calls', ['payment_id' => $order_id])->row();
+        if (empty($wc)) {
+            return ['status' => 'not_found', 'order_id' => $order_id];
+        }
+        $prid = $wc->prid;
+
+        $student   = $this->db->get_where('students', ['PRID' => $prid])->row();
+        $cart_data = $this->db->get_where('cart_prid', ['prid' => $prid])->result();
+        if (empty($student) || empty($cart_data)) {
+            $this->log_line("CIN ".$order_id.": no student or cart_prid for prid ".$prid." - cannot create CIN");
+            return ['status' => 'no_data', 'order_id' => $order_id, 'prid' => $prid];
+        }
+
+        $school = $this->db->get_where('school_new', ['id' => $student->school_code])->row();
+        if (empty($school)) {
+            // verify3 looks up school_new by PK (students.school_code holds the
+            // school_new id); fall back to a literal code lookup just in case.
+            $school = $this->db->get_where('school_new', ['school_code' => $student->school_code])->row();
+        }
+        $period = $this->db->get_where('period', ['period_id' => $student->period_id])->row();
+        if (empty($school) || empty($period)) {
+            $this->log_line("CIN ".$order_id.": missing school/period for prid ".$prid." - cannot create CIN");
+            return ['status' => 'no_data', 'order_id' => $order_id, 'prid' => $prid];
+        }
+        $pieces = explode("S", $student->school_code);
+        $who = 0; $created = []; $skipped = 0;
+        $fcm = isset($student->fcm_token) ? $student->fcm_token : '';
+
+        foreach ($cart_data as $row) {
+            $who = $this->create_one_cin($order_id, $prid, $row, $student, $school, $period, $pieces, $who, $fcm, $created);
+        }
+
+        $notified = false;
+        if (!empty($created) && !empty($fcm)) {
+            $notified = $this->notify_student($fcm, $order_id, $created);
+        }
+        $this->log_line("CIN ".$order_id.": created ".count($created).", notified ".($notified?'yes':'no'));
+        return ['status' => 'ok', 'order_id' => $order_id, 'prid' => $prid, 'created' => $created, 'notified' => $notified];
+    }
+
+    private function notify_student($token, $order_id, $cins)
+    {
+        try {
+            $CI =& get_instance();
+            $CI->load->library('fcm_push');
+            $list = implode(', ', array_slice($cins, 0, 5)) . (count($cins) > 5 ? '...' : '');
+            $res = $CI->fcm_push->send_to_token($token, "Registration confirmed", "Your CIN: ".$list, [
+                'order_id' => (string)$order_id, 'type' => 'cin_created',
+            ]);
+            $ok = !empty($res['success']);
+            $this->log_line("CIN NOTIFY ".$order_id.": ".($ok?'sent':'FAILED')." ".json_encode($res));
+            return $ok;
+        } catch (\Throwable $e) {
+            $this->log_line("CIN NOTIFY ERROR ".$order_id.": ".$e->getMessage());
+            return false;
+        }
+    }
+
+    // Create ONE CIN for a cart row (idempotent). Appends the CIN to $created.
+    // Mirrors Razorpay::verify3() exactly (incl. its $who pre-increment quirk:
+    // the first CIN ends in ...1, not ...0).
+    private function create_one_cin($order_id, $prid, $row, $student, $school, $period, $pieces, $who, $fcm, &$created)
+    {
+        $product = $this->db->get_where('products', ['product_name' => $row->product])->row();
+        if (empty($product)) { return $who; }
+
+        $competition = $this->db->select('product_to_school.*, revenue_setting.*')
+            ->from('product_to_school')
+            ->join('revenue_setting', 'revenue_setting.id = product_to_school.revenue_setting_id', 'left')
+            ->where(['product_to_school.period_id' => $student->period_id,
+                'product_to_school.school_id' => $student->school_id,
+                'product_to_school.product_id' => $product->product_id])
+            ->get()->row();
+        // verify3 parity: competition row may be absent for this school (then
+        // CINs are still created - registration is offline). Fall back to a
+        // period+product row or a level-1 default so CINs are NEVER skipped.
+        if (empty($competition)) {
+            $this->log_line("CIN ".$order_id.": no product_to_school for school ".$student->school_id."/period ".$student->period_id."/product ".$product->product_id." - using level-1 default");
+            $competition = $this->db->select('product_to_school.*, revenue_setting.*')
+                ->from('product_to_school')
+                ->join('revenue_setting', 'revenue_setting.id = product_to_school.revenue_setting_id', 'left')
+                ->where(['product_to_school.period_id' => $student->period_id,
+                    'product_to_school.product_id' => $product->product_id])
+                ->get()->row();
+        }
+        $level_id = (!empty($competition) && isset($competition->level_id) && $competition->level_id !== '') ? $competition->level_id : 1;
+        $comp_date = (!empty($competition) && isset($competition->comp_date)) ? $competition->comp_date : null;
+
+        $comp_scd = $this->db->get_where('competition_schedule', [
+            'period_id' => $student->period_id,
+            'product_id' => $product->product_id,
+            'school_id' => $student->school_id,
+            'state_id'  => $student->state,
+            'competition_level_id' => $level_id,
+        ])->row();
+        if (empty($comp_scd)) {
+            // verify3 would fatal here ($comp_scd->... on null); Splitpay must
+            // NOT - registration is offline, so keep NULL schedule refs.
+            $this->log_line("CIN ".$order_id.": no competition_schedule for school ".$student->school_id."/period ".$student->period_id."/product ".$product->product_id."/level ".$level_id." - NULL schedule ref");
+            $comp_scd_id = null;
+        } else {
+            $comp_scd_id = $comp_scd->competition_schedule_id;
+        }
+
+        $period_id = $student->period_id;
+        $who = $who + 1; // verify3 parity: pre-increment, first CIN ends in ...1
+        $ini  = $product->in13;
+        $p_ini = isset($product->initials) ? $product->initials : '';
+        $code = empty($school->area_code) ? $pieces[0] : $school->area_code;
+        $it   = explode("MREG", $prid);
+        $it1  = isset($it[1]) ? $it[1] : $prid;
+        $cin  = $period->initials . $p_ini . $ini . $code . $who . $it1;
+
+        // per-CIN idempotency: skip if this CIN already exists
+        if ($this->db->get_where('cin_list', ['cin' => $cin])->row()) { return $who; }
+
+        $student_flag = (stripos((string)$row->name, (string)$student->first_name) !== false) ? 0 : 1;
+
+        $this->db->insert('product_purchase', [
+            'product_name' => $row->product, 'prid' => $prid, 'period_id' => $period_id,
+            'amount' => $row->amount, 'payment_id' => $order_id, 'cin' => $cin,
+            'who' => $student_flag, 'student_name' => $row->name,
+        ]);
+        $this->db->insert('cin_list', [
+            'cin' => $cin, 'password' => $cin, 'period_id' => $period_id,
+            'student_name' => $row->name,
+            'franchise_id' => (!empty($competition) && isset($competition->franchise_id)) ? $competition->franchise_id : null,
+            'franchise_code' => $code, 'address1' => $student->address1, 'address2' => $student->address2,
+            'stud_email' => $student->email, 'stud_phone' => $student->mobile, 'class' => $row->class,
+            'father_name' => $student->father_name, 'mother_name' => $student->mother_name,
+            'school_id' => $student->school_id, 'state_id' => $student->state, 'status' => 'Active',
+            'gender' => $student->gender, 'prid' => $prid,
+            'competition_schedule_id' => $comp_scd_id, 'fcm_token' => $fcm,
+        ]);
+        if ($level_id > 1) {
+            $this->db->insert('cin_result', [
+                'cin' => $cin, 'period_id' => $period_id, 'product_name' => $row->product,
+                'clevel' => $level_id, 'status' => 'Q',
+                'competition_date' => $comp_date,
+                'competition_schedule_id' => $comp_scd_id,
+            ]);
+        } else {
+            $this->db->insert('cin_result', [
+                'cin' => $cin, 'period_id' => $period_id, 'product_name' => $row->product,
+                'clevel' => $level_id,
+                'competition_schedule_id' => $comp_scd_id,
+            ]);
+        }
+        $this->db->insert('new_cart', [
+            'cin' => $cin, 'period_id' => $period_id, 'product_name' => $row->product,
+            'clevel' => $level_id,
+            'status' => 'Paid', 'comp_date' => $comp_date,
+        ]);
+        $comp_state = (!empty($competition) && isset($competition->state)) ? $competition->state : null;
+        $comp = $this->db->get_where('competition_product_state', [
+            'product_name' => $row->product, 'period_id' => $period_id,
+            'clevel' => $level_id, 'state_id' => $comp_state,
+        ])->row();
+        if ($comp) {
+            $this->db->insert('cin_uploade', ['cin' => $cin, 'comp_id' => $comp->id]);
+        }
+        $created[] = $cin;
+        return $who;
+    }
+
+
+
 
     // ------------------------------------------------------------------ //
     // HTTP JSON helpers
@@ -299,11 +498,16 @@ class Splitpay extends CI_Controller {
             $report['makers'] = $this->split_makers($order_id, false);
 
             $this->record_split($wc, $legs, $report['makers']);
+
+            // Create CINs (pay3 flow) BEFORE any cart cleanup - needs cart_prid.
+            $report['cins'] = $this->create_cins($order_id);
+
             $this->db->where('payment_id', $order_id);
             $this->db->where('prid', $wc->prid);
             $this->db->update('webhook_calls', ['status' => 1, 'date_of_payment' => date('Y-m-d H:i:s')]);
+            // verify3 parity: cart cleanup is by prid only (column is
+            // payment_order_id, NOT payment_id - old filter matched nothing).
             $this->db->where('prid', $wc->prid);
-            $this->db->where('payment_order_id', $order_id);
             $this->db->delete('cart_prid');
 
             $report['status'] = 'processed';
@@ -428,6 +632,14 @@ class Splitpay extends CI_Controller {
         $tid = function ($key) use ($legs) {
             return isset($legs[$key]['transfer_id']) ? $legs[$key]['transfer_id'] : '';
         };
+        $has_franchise_id = isset($wc->franchise_id) && $wc->franchise_id !== null && $wc->franchise_id !== '';
+        // NOTE: payment_split_prid columns are NOT NULL *without* defaults,
+        // while webhook_calls.* is all TEXT (often NULL). Build inserts with
+        // only NOT NULL-safe values: '' for strings, '0' for int-ish columns.
+        // payment_split is mostly nullable, but we reuse the same arrays.
+        $franchise_id = $has_franchise_id ? $wc->franchise_id : '0';
+        $s  = function ($v) { return ($v === null || $v === '') ? '' : $v; };
+        $n0 = function ($v) { return ($v === null || $v === '') ? '0' : $v; };
 
         // maker identity: first maker row that got paid (or was already paid)
         $maker_id = '';
@@ -439,6 +651,7 @@ class Splitpay extends CI_Controller {
                 break;
             }
         }
+        if ($maker_id === null || $maker_id === '') { $maker_id = '0'; }
 
         $now = date('Y-m-d H:i:s');
 
@@ -446,37 +659,37 @@ class Splitpay extends CI_Controller {
         $exists = $this->db->get_where('payment_split_prid', ['payment_id' => $wc->payment_id])->row();
         if (empty($exists)) {
             $inst = [
-                'prid'                  => $wc->prid,
-                'clevel'                => $wc->clevel,
-                'total_amount'          => $wc->total_amount,
-                'franchise_amount'      => $wc->franchise_amount,
+                'prid'                  => $s($wc->prid),
+                'clevel'                => $s($wc->clevel),
+                'total_amount'          => $s($wc->total_amount),
+                'franchise_amount'      => $s($wc->franchise_amount),
                 'franchise_tranfer_id'  => $tid('franchise'),
-                'franchise_id'          => $wc->franchise_id,
-                'franchise_gst'         => $wc->franchise_gst,
-                'school_amount'         => $wc->school_amount,
-                'payment_id'            => $wc->payment_id,
-                'aviansys_amount'       => $wc->aviansys_amount,
-                'aviansys_gst'          => $wc->aviansys_gst,
+                'franchise_id'          => $franchise_id,
+                'franchise_gst'         => $s($wc->franchise_gst),
+                'school_amount'         => $s($wc->school_amount),
+                'payment_id'            => $s($wc->payment_id),
+                'aviansys_amount'       => $s($wc->aviansys_amount),
+                'aviansys_gst'          => $s($wc->aviansys_gst),
                 'aviansys_tranfer_id'   => $tid('aviansys'),
-                'gst_amount'            => $wc->marrs_gst,
+                'gst_amount'            => $s($wc->marrs_gst),
                 'gst_tranfer_id'        => $tid('gst'),
-                'razpay_service'        => $wc->razpay_service,
-                'crm_fix'               => $wc->crm_fix,
+                'razpay_service'        => $s($wc->razpay_service),
+                'crm_fix'               => $n0($wc->crm_fix),
                 'crm_fix_tranfer_id'    => $tid('crm'),
-                'it_fix'                => $wc->it_fix,
+                'it_fix'                => $n0($wc->it_fix),
                 'it_fix_tranfer_id'     => $tid('it'),
-                'MaRRS_bal'             => $wc->MaRRS_bal,
-                'date_of_payment'       => $now,
-                'management_amount'     => $wc->management_amount,
+                'MaRRS_bal'             => $s($wc->MaRRS_bal),
+                'date_of_payment'       => substr($now, 0, 10),
+                'management_amount'     => $s($wc->management_amount),
                 'management_tranfer_id' => $tid('management'),
-                'associate_gst'         => $wc->associate_gst,
+                'associate_gst'         => $n0($wc->associate_gst),
                 'associate_tranfer_id'  => $tid('associate'),
-                'associate_amount'      => $wc->associate_amount,
-                'associate_id'          => $wc->associate_id,
-                'comp_id'               => $wc->comp_id,
+                'associate_amount'      => $n0($wc->associate_amount),
+                'associate_id'          => $n0($wc->associate_id),
+                'comp_id'               => $n0($wc->comp_id),
                 'status'                => 1,
                 'maker_id'              => $maker_id,
-                'total_maker_amount'    => $wc->total_maker_amount,
+                'total_maker_amount'    => $s($wc->total_maker_amount),
                 'maker_transfer_id'     => $maker_tid,
             ];
             if (!$this->db->insert('payment_split_prid', $inst)) {
@@ -488,37 +701,37 @@ class Splitpay extends CI_Controller {
         $exists2 = $this->db->get_where('payment_split', ['payment_id' => $wc->payment_id])->row();
         if (empty($exists2)) {
             $inst2 = [
-                'cin'                   => $wc->cin,
-                'clevel'                => $wc->clevel,
-                'total_amount'          => $wc->total_amount,
-                'franchise_amount'      => $wc->franchise_amount,
+                'cin'                   => $s($wc->cin),
+                'clevel'                => $n0($wc->clevel),
+                'total_amount'          => $s($wc->total_amount),
+                'franchise_amount'      => $s($wc->franchise_amount),
                 'franchise_tranfer_id'  => $tid('franchise'),
-                'franchise_id'          => $wc->franchise_id,
-                'franchise_gst'         => $wc->franchise_gst,
-                'school_amount'         => $wc->school_amount,
-                'payment_id'            => $wc->payment_id,
-                'aviansys_amount'       => $wc->aviansys_amount,
-                'aviansys_gst'          => $wc->aviansys_gst,
+                'franchise_id'          => $franchise_id,
+                'franchise_gst'         => $s($wc->franchise_gst),
+                'school_amount'         => $s($wc->school_amount),
+                'payment_id'            => $s($wc->payment_id),
+                'aviansys_amount'       => $s($wc->aviansys_amount),
+                'aviansys_gst'          => $s($wc->aviansys_gst),
                 'aviansys_tranfer_id'   => $tid('aviansys'),
-                'gst_amount'            => $wc->marrs_gst,
+                'gst_amount'            => $s($wc->marrs_gst),
                 'gst_tranfer_id'        => $tid('gst'),
-                'razpay_service'        => $wc->razpay_service,
-                'crm_fix'               => $wc->crm_fix,
+                'razpay_service'        => $s($wc->razpay_service),
+                'crm_fix'               => $s($wc->crm_fix),
                 'crm_fix_tranfer_id'    => $tid('crm'),
-                'it_fix'                => $wc->it_fix,
+                'it_fix'                => $n0($wc->it_fix),
                 'it_fix_tranfer_id'     => $tid('it'),
-                'MaRRS_bal'             => $wc->MaRRS_bal,
+                'MaRRS_bal'             => $s($wc->MaRRS_bal),
                 'date_of_payment'       => $now,
-                'management_amount'     => $wc->management_amount,
+                'management_amount'     => $s($wc->management_amount),
                 'management_tranfer_id' => $tid('management'),
-                'associate_gst'         => $wc->associate_gst,
+                'associate_gst'         => $s($wc->associate_gst),
                 'associate_tranfer_id'  => $tid('associate'),
-                'associate_amount'      => $wc->associate_amount,
-                'associate_id'          => $wc->associate_id,
-                'comp_id'               => $wc->comp_id,
+                'associate_amount'      => $s($wc->associate_amount),
+                'associate_id'          => $s($wc->associate_id),
+                'comp_id'               => $s($wc->comp_id),
                 'status'                => 1,
                 'maker_id'              => $maker_id,
-                'total_maker_amount'    => $wc->total_maker_amount,
+                'total_maker_amount'    => $s($wc->total_maker_amount),
                 'maker_transfer_id'     => $maker_tid,
             ];
             if (!$this->db->insert('payment_split', $inst2)) {

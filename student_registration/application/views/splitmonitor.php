@@ -40,8 +40,9 @@ table{ border-collapse:collapse; width:100%; font-size:12.5px; }
 th,td{ border-top:1px solid var(--line); padding:7px 10px; text-align:left; white-space:nowrap; }
 th{ color:var(--muted); font-weight:600; position:sticky; top:0; background:var(--card); }
 td.wrap{ white-space:normal; min-width:320px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px; }
-tr.row-bad td{ background:rgba(217,67,79,.07); }
-tr.row-warn td{ background:rgba(180,83,9,.07); }
+tr.row-bad td{ background:rgba(217,67,79,.10); }
+tr.row-warn td{ background:rgba(180,83,9,.08); }
+tr.row-ok td{ background:rgba(47,125,79,.07); }
 .empty{ padding:16px; color:var(--muted); }
 .keys{ display:flex; gap:24px; padding:6px 14px 14px; flex-wrap:wrap; }
 .keys b{ font-family:ui-monospace,Menlo,Consolas,monospace; }
@@ -73,6 +74,7 @@ h2.sec{ font-size:15px; margin:18px 4px 8px; }
     <button data-tab="webhook" onclick="showTab('webhook')">Webhook Calls <span class="cnt" id="t-wc">0</span></button>
     <button data-tab="splits" onclick="showTab('splits')">Splits <span class="cnt" id="t-sp">0</span></button>
     <button data-tab="makers" onclick="showTab('makers')">Maker Splits <span class="cnt" id="t-mk">0</span></button>
+    <button data-tab="cins" onclick="showTab('cins')">CIN &amp; Registration <span class="cnt" id="t-cin">0</span></button>
     <button data-tab="errors" onclick="showTab('errors')">Errors <span class="cnt" id="t-err">0</span></button>
     <button data-tab="keys" onclick="showTab('keys')">Keys</button>
 </nav>
@@ -102,6 +104,11 @@ h2.sec{ font-size:15px; margin:18px 4px 8px; }
     <section id="tab-makers" class="tab">
         <h2 class="sec">Maker splits (makers_splits) — unpaid rows show the exact reason</h2>
         <section><div class="tablewrap"><table id="mk-table"></table></div></section>
+    </section>
+
+    <section id="tab-cins" class="tab">
+        <h2 class="sec">CIN &amp; registration (created from the webhook after payment) — 🟢 CIN + notified · 🟠 CIN, no device token · 🔴 paid but NO CIN</h2>
+        <section><div class="tablewrap"><table id="cin-table"></table></div></section>
     </section>
 
     <section id="tab-errors" class="tab">
@@ -162,7 +169,9 @@ function render(d){
         card(s.splits_prid, 'split_prid rows') +
         card(s.splits, 'payment_split rows') +
         card(s.makers_paid, 'makers paid', 'ok') +
-        card(s.makers_unpaid, 'makers UNPAID', s.makers_unpaid?'bad':'');
+        card(s.makers_unpaid, 'makers UNPAID', s.makers_unpaid?'bad':'') +
+        card(s.cins_total, 'CINs created', s.cins_total?'ok':'') +
+        card(s.paid_no_cin, 'paid but NO CIN', s.paid_no_cin?'bad':'');
 
     // webhook activity strip
     document.getElementById('activity').innerHTML =
@@ -187,6 +196,31 @@ function render(d){
     document.getElementById('t-wc').textContent = d.webhook_calls.length;
     document.getElementById('t-sp').textContent = (d.split_prid.length + d.split.length);
     document.getElementById('t-mk').textContent = d.makers.length + (s.makers_unpaid ? ' !'+s.makers_unpaid : '');
+    document.getElementById('t-cin').textContent = d.cins.length + (s.paid_no_cin ? ' !'+s.paid_no_cin : '');
+
+    // CIN & registration table (color-coded)
+    table('cin-table', [
+        {l:'order id', f:function(r){return r.order_id;}},
+        {l:'prid', f:function(r){return r.prid;}},
+        {l:'name', f:function(r){return r.name;}},
+        {l:'total', f:function(r){return r.total;}},
+        {l:'status', f:function(r){return ['PENDING','PROCESSING','DONE'][r.status]||r.status;}},
+        {l:'CINs', f:function(r){return r.cin_count;}},
+        {l:'CIN numbers', wrap:true, f:function(r){return (r.cins&&r.cins.length)?r.cins.join(', '):'-';}},
+        {l:'device token', f:function(r){return r.has_token?'yes':'no';}},
+        {l:'notify', f:function(r){
+            if (r.status!==1) return '-';
+            if (r.cin_count===0) return 'no CIN';
+            return r.has_token ? 'sent' : 'no token';
+        }},
+        {l:'split', f:function(r){return r.recon_ok?'Balanced':'Gap '+r.recon_gap;}}
+    ], d.cins, function(r){
+        if (r.status===1 && r.cin_count===0) return 'row-bad';      // paid but no CIN
+        if (r.status===1 && !r.recon_ok) return 'row-warn';          // split gap
+        if (r.status===1 && !r.has_token) return 'row-warn';         // CIN but no token
+        if (r.status===1) return 'row-ok';                           // CIN + balanced (+token)
+        return '';
+    });
 
     table('wc-table', [
         {l:'id', f:function(r){return r.id;}}, {l:'order id', f:function(r){return r.payment_id;}},
@@ -206,8 +240,14 @@ function render(d){
             return t.join(' + ');
         }},
         {l:'inserted', f:function(r){return (r.inserted_date||'')+' '+(r.inserted_time||'');}},
-        {l:'paid at', f:function(r){return r.date_of_payment;}}
-    ], d.webhook_calls, function(r){ return parseInt(r.status)===0?'row-warn':''; });
+        {l:'paid at', f:function(r){return r.date_of_payment;}},
+        {l:'CINs', f:function(r){return r.cin_count;}},
+        {l:'split', f:function(r){return r.recon_ok?'Balanced':'Gap '+r.recon_gap;}}
+    ], d.webhook_calls, function(r){
+        if (parseInt(r.status)===1 && r.cin_count===0) return 'row-bad';
+        if (parseInt(r.status)===0) return 'row-warn';
+        return '';
+    });
 
     var spCols = [
         {l:'pay_id', f:function(r){return r.pay_id;}}, {l:'order id', f:function(r){return r.payment_id;}},
