@@ -248,8 +248,86 @@ class Splitpay extends CI_Controller {
         if (!empty($created) && !empty($fcm)) {
             $notified = $this->notify_student($fcm, $order_id, $created);
         }
-        $this->log_line("CIN ".$order_id.": created ".count($created).", notified ".($notified?'yes':'no'));
-        return ['status' => 'ok', 'order_id' => $order_id, 'prid' => $prid, 'created' => $created, 'notified' => $notified];
+        return ['created' => $created, 'skipped' => $skipped, 'notified' => $notified, 'fcm' => !empty($fcm)];
+    }
+
+    // ------------------------------------------------------------------ //
+    // Read-only Razorpay order status lookup (NO money movement).
+    //
+    // GET /v1/orders/<order_id> + /v1/orders/<id>/payments via the
+    // credentials-table keys. Used by Splitmonitor::order_detail() and the
+    // monitor's "Check payment" button so operators can compare Razorpay's
+    // truth vs our webhook_calls(_cin) rows before pressing Activate.
+    // Returns array; never throws (errors come back in 'error').
+    // ------------------------------------------------------------------ //
+    public static function razorpay_order_status($order_id)
+    {
+        $order_id = trim((string)$order_id);
+        if ($order_id === '') {
+            return array('ok' => false, 'error' => 'empty order_id');
+        }
+        if (strpos($order_id, 'order_') !== 0) {
+            return array('ok' => false, 'error' => 'not a Razorpay order id');
+        }
+
+        $k = self::razorpay_keys();
+        $out = array('ok' => false, 'order_id' => $order_id);
+
+        $get = function ($path) use ($k) {
+            $ch = curl_init('https://api.razorpay.com' . $path);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, array($k['auth_header']));
+            $body = curl_exec($ch);
+            $http = (int)(curl_errno($ch) ? 0 : curl_getinfo($ch, CURLINFO_HTTP_CODE));
+            $err  = curl_errno($ch) ? curl_error($ch) : '';
+            curl_close($ch);
+            return array($http, $body, $err);
+        };
+
+        list($http, $body, $err) = $get('/v1/orders/' . rawurlencode($order_id));
+        if ($err !== '' || $http < 200 || $http >= 300) {
+            $out['error'] = $err !== '' ? ('curl: ' . $err) : ('razorpay http ' . $http . ': ' . substr((string)$body, 0, 200));
+            return $out;
+        }
+        $order = json_decode((string)$body, true);
+        if (!is_array($order)) {
+            return array('ok' => false, 'order_id' => $order_id, 'error' => 'invalid order JSON');
+        }
+        $out['razorpay_status'] = isset($order['status']) ? $order['status'] : null; // created|attempted|paid
+        $out['amount']          = isset($order['amount']) ? ((float)$order['amount'] / 100) : null;
+        $out['amount_paid']     = isset($order['amount_paid']) ? ((float)$order['amount_paid'] / 100) : null;
+        $out['amount_due']      = isset($order['amount_due']) ? ((float)$order['amount_due'] / 100) : null;
+        $out['receipt']         = isset($order['receipt']) ? $order['receipt'] : null;
+        $out['created_at']      = isset($order['created_at']) ? date('Y-m-d H:i:s', (int)$order['created_at']) : null;
+
+        // Payments on this order (contact/email/method of the latest attempt).
+        list($phttp, $pbody, $perr) = $get('/v1/orders/' . rawurlencode($order_id) . '/payments');
+        $payments = array();
+        if ($perr === '' && $phttp >= 200 && $phttp < 300) {
+            $pj = json_decode((string)$pbody, true);
+            if (is_array($pj) && isset($pj['items']) && is_array($pj['items'])) {
+                foreach ($pj['items'] as $p) {
+                    $payments[] = array(
+                        'id'      => isset($p['id']) ? $p['id'] : null,
+                        'status'  => isset($p['status']) ? $p['status'] : null,
+                        'method'  => isset($p['method']) ? $p['method'] : null,
+                        'amount'  => isset($p['amount']) ? ((float)$p['amount'] / 100) : null,
+                        'contact' => isset($p['contact']) ? $p['contact'] : null,
+                        'email'   => isset($p['email']) ? $p['email'] : null,
+                    );
+                }
+            }
+        }
+        $out['payments'] = $payments;
+        if ($payments) {
+            $last = $payments[0];
+            $out['contact'] = $last['contact'];
+            $out['email']   = $last['email'];
+            $out['method']  = $last['method'];
+        }
+        $out['ok'] = true;
+        return $out;
     }
 
     private function notify_student($token, $order_id, $cins)

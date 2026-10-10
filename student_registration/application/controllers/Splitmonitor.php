@@ -43,10 +43,13 @@ class Splitmonitor extends CI_Controller
 
     public function data()
     {
-        $cutoff    = time() - 86400;
+        $days = (int)$this->input->get('days');
+        if ($days < 1 || $days > 7) { $days = 1; }
+        $cutoff    = time() - $days * 86400;
         $since_day = date('Y-m-d', $cutoff);
+        $since_dt  = date('Y-m-d H:i:s', $cutoff);
 
-        // ---------- webhook_calls (last 24h window by inserted_date) ----------
+        // ---------- webhook_calls (selected day window by inserted_date) ----------
         $webhook_calls = $this->db->query(
             "SELECT * FROM webhook_calls WHERE inserted_date >= ? ORDER BY id DESC LIMIT 300",
             [$since_day]
@@ -55,11 +58,11 @@ class Splitmonitor extends CI_Controller
         // ---------- splits ----------
         $split_prid = $this->db->query(
             "SELECT * FROM payment_split_prid WHERE date_of_payment >= ? ORDER BY pay_id DESC LIMIT 300",
-            [date('Y-m-d H:i:s', $cutoff)]
+            [$since_dt]
         )->result();
         $split = $this->db->query(
             "SELECT * FROM payment_split WHERE date_of_payment >= ? ORDER BY pay_id DESC LIMIT 300",
-            [date('Y-m-d H:i:s', $cutoff)]
+            [$since_dt]
         )->result();
 
         // ---------- order ids from ALL split tables + CIN webhooks ----------
@@ -68,7 +71,7 @@ class Splitmonitor extends CI_Controller
         foreach ($split_prid as $r)    { $order_ids[$r->payment_id] = true; }
         foreach ($split as $r)         { $order_ids[$r->payment_id] = true; }
 
-        // ---------- pay2/CIN flow: webhook_calls_cin (same 24h window) ----------
+        // ---------- pay2/CIN flow: webhook_calls_cin (same selected window) ----------
         $webhook_cin = [];
         try {
             $webhook_cin = $this->db->query(
@@ -155,6 +158,8 @@ class Splitmonitor extends CI_Controller
         // ---------- per-order trace: which tables have this order ----------
         $wc_by_order   = [];
         foreach ($webhook_calls as $r) { $wc_by_order[$r->payment_id] = $r; }
+        $wc_cin_by_order = [];
+        foreach ($webhook_cin as $r) { $wc_cin_by_order[$r->payment_id] = $r; }
         $sp_by_order   = [];
         foreach ($split_prid as $r)    { $sp_by_order[$r->payment_id] = true; }
         $split_by_order = [];
@@ -187,6 +192,18 @@ class Splitmonitor extends CI_Controller
             $row = (array)$m;
             $row['state']  = $state;
             $row['reason'] = $reason;
+            $cin_webhook = isset($wc_cin_by_order[$m->order_id]) ? $wc_cin_by_order[$m->order_id] : null;
+            $prid_webhook = isset($wc_by_order[$m->order_id]) ? $wc_by_order[$m->order_id] : null;
+            $row['flow'] = $cin_webhook ? 'CIN' : ($prid_webhook ? 'PRID' : 'ORPHAN');
+            $source_webhook = $cin_webhook ?: $prid_webhook;
+            $row['product_name'] = !empty($source_webhook->product_name) ? $source_webhook->product_name : '';
+            $split_record = isset($split_by_order[$m->order_id]) ? $this->find_order_row($split, $m->order_id) : null;
+            if (!$split_record && isset($sp_by_order[$m->order_id])) {
+                $split_record = $this->find_order_row($split_prid, $m->order_id);
+            }
+            $row['time'] = $source_webhook
+                ? trim((isset($source_webhook->inserted_date) ? $source_webhook->inserted_date : '') . ' ' . (isset($source_webhook->inserted_time) ? $source_webhook->inserted_time : ''))
+                : ($split_record && isset($split_record->date_of_payment) ? $split_record->date_of_payment : '');
             $maker_rows[]  = $row;
         }
 
@@ -316,7 +333,8 @@ class Splitmonitor extends CI_Controller
         header('Content-Type: application/json');
         echo json_encode([
             'generated_at'  => date('Y-m-d H:i:s'),
-            'window_hours'  => 24,
+            'window_hours'  => $days * 24,
+            'window_days'   => $days,
             'summary'       => $summary,
             'keys'          => $keys_status,
             'webhook_calls' => $wc_rows,
@@ -328,6 +346,188 @@ class Splitmonitor extends CI_Controller
             'cins'          => $cin_rows,
             'logs'          => $logs,
         ]);
+    }
+
+    public function order_detail()
+    {
+        if (strtoupper((string)$this->input->method(TRUE)) !== 'POST') {
+            return $this->output->set_status_header(405)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => 'POST is required.']));
+        }
+
+        $order_id = trim((string)$this->input->post('order_id'));
+        if (!preg_match('/^order_[A-Za-z0-9_-]{1,100}$/', $order_id)) {
+            return $this->output->set_status_header(400)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => 'Enter a valid Razorpay order ID.']));
+        }
+
+        $webhook = $this->get_order_rows('webhook_calls', $order_id, [
+            'payment_id', 'prid', 'cin', 'name', 'product_name', 'total_amount',
+            'status', 'inserted_date', 'inserted_time', 'date_of_payment', 'comp_id',
+        ]);
+        $webhook_cin = $this->get_order_rows('webhook_calls_cin', $order_id, [
+            'payment_id', 'prid', 'cin', 'name', 'product_name', 'total_amount',
+            'status', 'inserted_date', 'inserted_time', 'date_of_payment', 'comp_id',
+        ]);
+        $split_prid = $this->get_order_rows('payment_split_prid', $order_id, [
+            'pay_id', 'payment_id', 'prid', 'total_amount', 'franchise_amount',
+            'franchise_gst', 'franchise_tranfer_id', 'school_amount', 'associate_amount',
+            'associate_gst', 'associate_tranfer_id', 'crm_fix', 'crm_fix_tranfer_id',
+            'it_fix', 'it_fix_tranfer_id', 'aviansys_amount', 'aviansys_gst',
+            'aviansys_tranfer_id', 'management_amount', 'management_tranfer_id',
+            'gst_amount', 'gst_tranfer_id', 'total_maker_amount', 'maker_transfer_id',
+            'MaRRS_bal', 'razpay_service', 'status', 'date_of_payment',
+        ]);
+        $split = $this->get_order_rows('payment_split', $order_id, [
+            'pay_id', 'payment_id', 'cin', 'total_amount', 'franchise_amount',
+            'franchise_gst', 'franchise_tranfer_id', 'school_amount', 'associate_amount',
+            'associate_gst', 'associate_tranfer_id', 'crm_fix', 'crm_fix_tranfer_id',
+            'it_fix', 'it_fix_tranfer_id', 'aviansys_amount', 'aviansys_gst',
+            'aviansys_tranfer_id', 'management_amount', 'management_tranfer_id',
+            'gst_amount', 'gst_tranfer_id', 'total_maker_amount', 'maker_transfer_id',
+            'MaRRS_bal', 'razpay_service', 'status', 'date_of_payment',
+        ]);
+        $makers = $this->get_order_rows('makers_splits', $order_id, [
+            'id', 'order_id', 'title', 'maker_id', 'price', 'transaction_id',
+            'product_name', 'state', 'prid',
+        ], 'id', 'DESC', 500);
+        $products = $this->get_order_rows('product_purchase', $order_id, [
+            'id', 'payment_id', 'prid', 'cin', 'product_name', 'student_name',
+            'amount', 'who',
+        ], 'id', 'ASC', 100);
+
+        $cins = [];
+        foreach (array_merge($webhook, $webhook_cin, $products) as $row) {
+            if (!empty($row['cin'])) {
+                $cins[$row['cin']] = $row['cin'];
+            }
+        }
+        $cins = array_values($cins);
+
+        $contact = [
+            'name' => '',
+            'phone' => '',
+            'email' => '',
+            'cin' => !empty($cins) ? implode(', ', $cins) : '',
+            'prid' => !empty($webhook[0]['prid']) ? $webhook[0]['prid'] : '',
+        ];
+        $contacts = [];
+
+        if (!empty($contact['prid']) && $this->db->table_exists('students')) {
+            $fields = array_intersect(
+                ['PRID', 'first_name', 'middle_name', 'last_name', 'student_name', 'email', 'mobile'],
+                $this->db->list_fields('students')
+            );
+            if (in_array('PRID', $fields, true)) {
+                $this->db->select($fields);
+                $student = $this->db->get_where('students', ['PRID' => $contact['prid']])->row_array();
+                if ($student) {
+                    $name = trim(implode(' ', array_filter([
+                        isset($student['first_name']) ? $student['first_name'] : '',
+                        isset($student['middle_name']) ? $student['middle_name'] : '',
+                        isset($student['last_name']) ? $student['last_name'] : '',
+                    ])));
+                    $contact['name'] = $name !== '' ? $name : (isset($student['student_name']) ? $student['student_name'] : '');
+                    $contact['email'] = isset($student['email']) ? $student['email'] : '';
+                    $contact['phone'] = isset($student['mobile']) ? $student['mobile'] : '';
+                    $contacts[] = [
+                        'name' => $contact['name'],
+                        'phone' => $contact['phone'],
+                        'email' => $contact['email'],
+                        'cin' => '',
+                        'source' => 'student record',
+                    ];
+                }
+            }
+        }
+
+        if (!empty($cins) && $this->db->table_exists('cin_list')) {
+            $fields = array_intersect(
+                ['cin', 'student_name', 'stud_phone', 'stud_email', 'prid'],
+                $this->db->list_fields('cin_list')
+            );
+            if (in_array('cin', $fields, true)) {
+                $this->db->select($fields);
+                $cin_rows = $this->db->where_in('cin', $cins)->limit(100)->get('cin_list')->result_array();
+                foreach ($cin_rows as $row) {
+                    $entry = [
+                        'name' => isset($row['student_name']) ? $row['student_name'] : '',
+                        'phone' => isset($row['stud_phone']) ? $row['stud_phone'] : '',
+                        'email' => isset($row['stud_email']) ? $row['stud_email'] : '',
+                        'cin' => isset($row['cin']) ? $row['cin'] : '',
+                        'source' => 'CIN record',
+                    ];
+                    $contacts[] = $entry;
+                    if ($contact['name'] === '') { $contact['name'] = $entry['name']; }
+                    if ($contact['phone'] === '') { $contact['phone'] = $entry['phone']; }
+                    if ($contact['email'] === '') { $contact['email'] = $entry['email']; }
+                }
+            }
+        }
+
+        foreach ($webhook_cin as $row) {
+            if ($contact['name'] === '' && !empty($row['name'])) { $contact['name'] = $row['name']; }
+        }
+        foreach ($products as $row) {
+            if ($contact['name'] === '' && !empty($row['student_name'])) { $contact['name'] = $row['student_name']; }
+        }
+
+        $razorpay = Splitpay::razorpay_order_status($order_id);
+        if ($contact['phone'] === '' && !empty($razorpay['contact'])) { $contact['phone'] = $razorpay['contact']; }
+        if ($contact['email'] === '' && !empty($razorpay['email'])) { $contact['email'] = $razorpay['email']; }
+
+        $found = !empty($webhook) || !empty($webhook_cin) || !empty($split_prid)
+            || !empty($split) || !empty($makers) || !empty($products);
+
+        return $this->output->set_content_type('application/json')
+            ->set_output(json_encode([
+                'success' => true,
+                'found' => $found,
+                'order_id' => $order_id,
+                'flow' => !empty($webhook_cin) ? 'CIN' : (!empty($webhook) ? 'PRID' : 'UNKNOWN'),
+                'webhook_calls' => $webhook,
+                'webhook_calls_cin' => $webhook_cin,
+                'split_prid' => $split_prid,
+                'split' => $split,
+                'makers' => $makers,
+                'products' => $products,
+                'contact' => $contact,
+                'contacts' => $contacts,
+                'razorpay' => $razorpay,
+            ]));
+    }
+
+    private function get_order_rows($table, $order_id, array $allowed_fields, $order_by = null, $direction = 'ASC', $limit = 100)
+    {
+        if (!$this->db->table_exists($table)) {
+            return [];
+        }
+
+        $fields = array_values(array_intersect($allowed_fields, $this->db->list_fields($table)));
+        if (!in_array('payment_id', $fields, true) && !in_array('order_id', $fields, true)) {
+            return [];
+        }
+
+        $this->db->select($fields)->where(
+            in_array('payment_id', $fields, true) ? 'payment_id' : 'order_id',
+            $order_id
+        );
+        if ($order_by && in_array($order_by, $this->db->list_fields($table), true)) {
+            $this->db->order_by($order_by, $direction === 'DESC' ? 'DESC' : 'ASC');
+        }
+        return $this->db->limit((int)$limit)->get($table)->result_array();
+    }
+
+    private function find_order_row(array $rows, $order_id)
+    {
+        foreach ($rows as $row) {
+            if (isset($row->payment_id) && $row->payment_id === $order_id) {
+                return $row;
+            }
+        }
+        return null;
     }
 
     /*
@@ -463,4 +663,3 @@ class Splitmonitor extends CI_Controller
         return ['counts' => $counts, 'errors' => $errors];
     }
 }
-
