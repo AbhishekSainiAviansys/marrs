@@ -117,6 +117,71 @@ class Splitpay extends CI_Controller {
     }
 
     // ------------------------------------------------------------------ //
+    // Admin push notification on a successful payment.
+    // Token comes from credentials(title='admin_fcm_token', public=token).
+    // NEVER throws - a push failure must not break the split.
+    // ------------------------------------------------------------------ //
+    private function notify_admin($order_id, $wc, $report)
+    {
+        try {
+            $CI =& get_instance();
+            $CI->load->library('fcm_push');
+
+            $row = $CI->db->get_where('credentials', ['title' => 'admin_fcm_token'])->row();
+            $token = (!empty($row) && !empty($row->public)) ? trim((string)$row->public) : '';
+            if ($token === '') {
+                $this->log_line("NOTIFY: no admin_fcm_token in credentials - skipping push for ".$order_id);
+                return;
+            }
+
+            $amount   = isset($wc->total_amount) ? $wc->total_amount : '';
+            $makers   = isset($report['makers']) ? (array)$report['makers'] : array();
+            $paid = 0; $unpaid = 0;
+            foreach ($makers as $m) {
+                if (isset($m['action']) && $m['action'] === 'paid') { $paid++; }
+                elseif (isset($m['action']) && in_array($m['action'], ['error_transfer', 'error_missing_maker'], true)) { $unpaid++; }
+            }
+            $body = "Order ".$order_id." | Rs ".$amount." | split done | makers paid ".$paid.", unpaid ".$unpaid;
+
+            $res = $CI->fcm_push->send_to_token($token, "Payment received", $body, array(
+                'order_id' => (string)$order_id,
+                'amount'   => (string)$amount,
+                'type'     => 'payment_success',
+            ));
+            $ok = !empty($res['success']);
+            $this->log_line("NOTIFY ".$order_id.": ".($ok ? 'sent' : 'FAILED')." ".json_encode($res));
+        } catch (\Throwable $e) {
+            $this->log_line("NOTIFY ERROR ".$order_id.": ".$e->getMessage());
+        }
+    }
+
+    // ------------------------------------------------------------------ //
+    // Manual test push (for the monitor's "Test push" button).
+    // URL: /splitpay/testPush
+    // ------------------------------------------------------------------ //
+    public function testPush()
+    {
+        $result = null;
+        try {
+            $CI =& get_instance();
+            $CI->load->library('fcm_push');
+            $row = $CI->db->get_where('credentials', ['title' => 'admin_fcm_token'])->row();
+            $token = (!empty($row) && !empty($row->public)) ? trim((string)$row->public) : '';
+            if ($token === '') {
+                $result = ['success' => false, 'error' => 'no admin_fcm_token in credentials'];
+            } else {
+                $result = $CI->fcm_push->send_to_token($token, "Test push", "Splitpay admin notification test", array('type' => 'test'));
+            }
+            $this->log_line("TESTPUSH: ".json_encode($result));
+        } catch (\Throwable $e) {
+            $result = ['success' => false, 'error' => $e->getMessage()];
+            $this->log_line("TESTPUSH ERROR: ".$e->getMessage());
+        }
+        return $this->json_out(['status' => 'ok', 'result' => $result]);
+    }
+
+
+    // ------------------------------------------------------------------ //
     // HTTP JSON helpers
     // ------------------------------------------------------------------ //
     private function json_out($data, $http = 200)
@@ -243,6 +308,10 @@ class Splitpay extends CI_Controller {
 
             $report['status'] = 'processed';
             $this->log_line("PROCESS ".$order_id.": DONE ".json_encode($report));
+
+            // Admin push on successful payment (never breaks the split).
+            $this->notify_admin($order_id, $wc, $report);
+
             return $report;
 
         } catch (\Throwable $e) {

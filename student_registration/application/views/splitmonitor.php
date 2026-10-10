@@ -64,6 +64,7 @@ h2.sec{ font-size:15px; margin:18px 4px 8px; }
     <div class="meta" id="generated_at">loading…</div>
     <div>
         <button onclick="load()">Refresh</button>
+        <button class="ghost" onclick="testPush()">Test push</button>
         <button class="ghost" onclick="document.body.dataset.theme=document.body.dataset.theme==='light'?'dark':'light'">Theme</button>
     </div>
 </header>
@@ -78,6 +79,8 @@ h2.sec{ font-size:15px; margin:18px 4px 8px; }
 <main>
     <section id="tab-overview" class="tab active">
         <div class="cards" id="cards"></div>
+        <h2 class="sec">Webhook activity (last 24h) &amp; notifications</h2>
+        <section><div class="keys" id="activity"></div></section>
         <h2 class="sec">Errors &amp; webhook setup problems</h2>
         <section><div id="errors"></div></section>
         <h2 class="sec">Razorpay keys</h2>
@@ -161,6 +164,16 @@ function render(d){
         card(s.makers_paid, 'makers paid', 'ok') +
         card(s.makers_unpaid, 'makers UNPAID', s.makers_unpaid?'bad':'');
 
+    // webhook activity strip
+    document.getElementById('activity').innerHTML =
+        '<div>payment.captured: <b>'+esc(s.ev_captured)+'</b></div>' +
+        '<div>order.paid: <b>'+esc(s.ev_order_paid)+'</b></div>' +
+        '<div>transfer.processed: <b>'+esc(s.ev_transfer)+'</b></div>' +
+        '<div>payment.authorized: <b>'+esc(s.ev_authorized)+'</b></div>' +
+        '<div>payment.failed: <b>'+esc(s.ev_failed)+'</b></div>' +
+        '<div>admin push sent: <b>'+esc(s.notify_sent)+'</b></div>' +
+        '<div>admin push failed: <b>'+esc(s.notify_failed)+'</b></div>';
+
     var totalErr = s.splitpay_errors + s.invalid_signature + s.no_signature + s.delegate_failed + s.on_hold_errors + s.php_errors;
 
     var errHtml = errBlock('Splitpay engine errors (logs/splitpay.log)', false, d.logs.splitpay.errors) +
@@ -240,6 +253,12 @@ function showTab(name){
     document.querySelector('.tabs button[data-tab="'+name+'"]').classList.add('active');
 }
 
+function testPush(){
+    fetch(BASE.replace('/splitmonitor','') + '/index.php/splitpay/testPush').then(function(r){ return r.json(); }).then(function(d){
+        var ok = d && d.result && d.result.success;
+        alert(ok ? 'Test push sent OK' : 'Test push failed: ' + JSON.stringify(d.result));
+    }).catch(function(e){ alert('Test push error: ' + e); });
+}
 function load(){
     fetch(BASE + '/data').then(function(r){
         return r.json();

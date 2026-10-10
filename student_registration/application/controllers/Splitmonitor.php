@@ -162,6 +162,13 @@ class Splitmonitor extends CI_Controller
             'on_hold_errors'    => $logs['webhook']['counts']['on_hold'],
             'delegate_failed'   => $logs['webhook']['counts']['delegate_failed'],
             'splitpay_errors'   => $logs['splitpay']['counts']['errors'],
+            'ev_captured'       => $logs['splitpay']['counts']['ev_captured'],
+            'ev_order_paid'     => $logs['splitpay']['counts']['ev_order_paid'],
+            'ev_transfer'       => $logs['splitpay']['counts']['ev_transfer'],
+            'ev_authorized'     => $logs['splitpay']['counts']['ev_authorized'],
+            'ev_failed'         => $logs['splitpay']['counts']['ev_failed'],
+            'notify_sent'       => $logs['splitpay']['counts']['notify_sent'],
+            'notify_failed'     => $logs['splitpay']['counts']['notify_failed'],
             'php_errors'        => $logs['php']['counts']['errors'],
             'wc_pending'        => $status['pending'],
             'wc_processing'     => $status['processing'],
@@ -196,7 +203,11 @@ class Splitmonitor extends CI_Controller
     /** splitpay.log (small - read whole file). */
     private function scan_splitpay_log($cutoff)
     {
-        $counts = ['entries' => 0, 'errors' => 0];
+        $counts = [
+            'entries' => 0, 'errors' => 0,
+            'ev_captured' => 0, 'ev_order_paid' => 0, 'ev_transfer' => 0,
+            'ev_authorized' => 0, 'ev_failed' => 0, 'notify_sent' => 0, 'notify_failed' => 0,
+        ];
         $errors = [];
         $file = APPPATH . 'logs/splitpay.log';
         if (!is_file($file)) {
@@ -209,8 +220,26 @@ class Splitmonitor extends CI_Controller
             }
             if ($ts < $cutoff) { continue; }
             $counts['entries']++;
+
+            // Informational webhook payload: count real events, NEVER an "error".
+            // (Razorpay payloads always contain error_code/error_description:null,
+            //  which a naive case-insensitive /ERROR/ regex would falsely match.)
+            if (strpos($line, 'WEBHOOK RAW:') !== false) {
+                if (strpos($line, '"payment.captured"')    !== false) { $counts['ev_captured']++; }
+                elseif (strpos($line, '"order.paid"')      !== false) { $counts['ev_order_paid']++; }
+                elseif (strpos($line, '"transfer.processed"') !== false) { $counts['ev_transfer']++; }
+                elseif (strpos($line, '"payment.authorized"') !== false) { $counts['ev_authorized']++; }
+                elseif (strpos($line, '"payment.failed"')  !== false) { $counts['ev_failed']++; }
+                continue;
+            }
+
+            // notification outcome lines (informational, not errors)
+            if (strpos($line, 'NOTIFY ') !== false && strpos($line, ': sent ') !== false) { $counts['notify_sent']++; }
+            if (strpos($line, 'NOTIFY ') !== false && strpos($line, ': FAILED ') !== false) { $counts['notify_failed']++; }
+
+            // Only OUR own error wording counts (no bare /ERROR/i - avoids false positives).
             $is_error = (bool)preg_match(
-                '/ERROR|error_transfer|error_missing_maker|claim failed|no webhook_calls row|exception|DELEGATE FAILED/i',
+                '/: ERROR\b|no webhook_calls row|DELEGATE FAILED|WEBHOOK: exception|insert failed|NOTIFY ERROR/i',
                 $line
             );
             if ($is_error) {
