@@ -4633,26 +4633,10 @@ class Razorpay extends CI_Controller {
 		            $this->db->where('prid',$_SESSION['prid']);
 		            $this->db->delete('cart_prid');
 		            
-		            $makers_split = $this->db->get_where('cart_prid', array('prid' => $_SESSION['prid'],'order_id'=>$order_id,'transaction_id'=>NULL))->result();
-            	    
-		            if (!empty($makers_split)) {
-                        foreach ($makers_split as $makers) {
-                            try {
-                                $maker = $this->db->get_where('material_maker', array('material_maker_id' => $makers->maker_id))->row();
-            
-                                if (!empty($maker) && $makers->price > 0) {
-                                    $maker_pay = $this->fetch($order_id, $maker->razorpay_id, $makers->price * 100, $maker->account_name);
-            
-                                    if ($maker_pay) {
-                                        $this->db->where('id', $makers->id);
-                                        $this->db->update('makers_splits', array('transaction_id' => $maker_pay['tranfer_id']));
-                                    }
-                                }
-                            } catch (Exception $e) {
-                                log_message('error', 'Maker split failed for order ' . $order_id . ', maker_id ' . $makers->maker_id . ': ' . $e->getMessage());
-                            }
-                        }
-                    }
+                    // REMOVED dead maker-split block (it queried cart_prid AFTER it was deleted
+                    // above, so it never ran). Maker transfers are now handled idempotently by
+                    // the Splitpay engine: splitpay/processEndpoint (called above via
+                    // processPaymentSplitsAsync1) and the Razorpay webhook splitpay/webhook.
 		    
 			/**
 			 * Call this function from where ever you want
@@ -4684,7 +4668,7 @@ class Razorpay extends CI_Controller {
      */
     private function callAsyncEndpoint1($order_id)
     {
-        $url = base_url('razorpay/processPaymentSplitsEndpoint1');
+        $url = base_url('splitpay/processEndpoint'); // OPTIMIZED: Splitpay engine (idempotent claim + maker splits)
     
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);

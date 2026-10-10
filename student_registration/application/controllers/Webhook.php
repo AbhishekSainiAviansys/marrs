@@ -91,7 +91,7 @@ class Webhook extends CI_Controller {
     }
     
     
-    public function webhooksplit()  
+    public function webhooksplit_legacy()  
     {
       
 
@@ -707,6 +707,60 @@ class Webhook extends CI_Controller {
             'raw_response' => $data
         ];
     }
+
+    /**
+     * ACTIVE webhook entry point (Razorpay dashboard URL stays
+     * .../Webhook/webhooksplit). Delegates to the optimized Splitpay
+     * controller: forwards the raw body + signature header so Splitpay
+     * performs full verification, atomic claiming, ALL transfer legs and
+     * the makers_splits (royalty) transfers - the old implementation
+     * transferred nothing (on_hold_until bug) and fatally called
+     * $this->update(), which made Razorpay retry up to 16x per order.
+     * The old body is kept above as webhooksplit_legacy() for rollback.
+     */
+    public function webhooksplit()
+    {
+        $raw = file_get_contents('php://input');
+
+        // recover the signature with the same fallbacks the legacy code used
+        $signature = $_SERVER['HTTP_X_RAZORPAY_SIGNATURE']
+            ?? $_SERVER['REDIRECT_HTTP_X_RAZORPAY_SIGNATURE']
+            ?? '';
+
+        $headers = ['Content-Type: application/json'];
+        if ($signature !== '') {
+            $headers[] = 'X-Razorpay-Signature: ' . $signature;
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => base_url('splitpay/webhook'),
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $raw,
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 120,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+        ]);
+        $out  = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+
+        if ($out === false) {
+            file_put_contents(APPPATH . 'logs/webhook.log', date('Y-m-d H:i:s') . " DELEGATE FAILED: " . $err . PHP_EOL, FILE_APPEND);
+            http_response_code(200); // ack anyway - avoid retry storms; verify3 path will still split
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'splitpay_unreachable', 'curl_error' => $err]);
+            return;
+        }
+
+        http_response_code($code ?: 200);
+        header('Content-Type: application/json');
+        echo $out;
+    }
+
 
 
 
