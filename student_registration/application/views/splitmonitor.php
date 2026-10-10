@@ -88,6 +88,14 @@ h2.sec{ font-size:15px; margin:18px 4px 8px; }
 .lookup-card b{ color:var(--muted); font-weight:600; }
 .lookup-note{ color:var(--muted); font-size:12px; }
 .lookup-message{ margin:10px 0; padding:10px 12px; border-radius:9px; background:var(--soft-blue); }
+.table-link{ padding:0; border:0; border-radius:0; background:none; color:var(--primary); text-decoration:underline; font:600 12.5px/1.4 ui-monospace,Menlo,Consolas,monospace; cursor:pointer; }
+.table-link:hover{ filter:none; transform:none; }
+.modal-backdrop{ display:none; position:fixed; inset:0; z-index:30; padding:24px; background:rgba(8,18,38,.68); align-items:center; justify-content:center; }
+.modal-backdrop.open{ display:flex; }
+.transfer-modal{ width:min(1100px,100%); max-height:calc(100vh - 48px); overflow:auto; padding:16px; border:1px solid var(--line); border-radius:14px; background:var(--bg); box-shadow:0 18px 60px rgba(0,0,0,.35); }
+.transfer-modal-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; position:sticky; top:-16px; z-index:2; margin:-16px -16px 12px; padding:14px 16px; background:var(--card); border-bottom:1px solid var(--line); }
+.transfer-modal-head h2{ margin:0; font-size:16px; overflow-wrap:anywhere; }
+.transfer-modal-head button{ flex:0 0 auto; }
 .toast{ display:none; position:fixed; right:18px; bottom:18px; z-index:20; max-width:min(480px,calc(100vw - 36px)); padding:12px 16px; border-radius:10px; background:#17233d; color:#fff; box-shadow:0 8px 25px rgba(0,0,0,.25); }
 .toast.show{ display:block; }
 .toast.error{ background:#a62d42; }
@@ -195,6 +203,15 @@ h2.sec{ font-size:15px; margin:18px 4px 8px; }
         <section><div class="keys" id="keys-full"></div></section>
     </section>
 </main>
+<div class="modal-backdrop" id="transfer-modal" aria-hidden="true" onclick="if(event.target===this)closeTransferModal()">
+    <section class="transfer-modal" role="dialog" aria-modal="true" aria-labelledby="transfer-modal-title">
+        <div class="transfer-modal-head">
+            <h2 id="transfer-modal-title">Transfer details</h2>
+            <button type="button" class="ghost" onclick="closeTransferModal()" aria-label="Close transfer details">Close</button>
+        </div>
+        <div id="transfer-modal-body" aria-live="polite"></div>
+    </section>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
 var BASE = <?php echo json_encode(rtrim(base_url(), '/').'/index.php/splitmonitor'); ?>;
@@ -489,8 +506,8 @@ function lookupOrder(event){
         showToast('Order lookup failed: ' + error.message, true);
     }).finally(function(){ button.disabled = false; });
 }
-function renderOrderDetails(data){
-    var results = document.getElementById('order-results');
+function renderOrderDetails(data, targetId){
+    var results = document.getElementById(targetId || 'order-results');
     var webhook = (data.webhook_calls && data.webhook_calls[0]) || (data.webhook_calls_cin && data.webhook_calls_cin[0]) || {};
     var razorpay = data.razorpay || {};
     var contact = data.contact || {};
@@ -593,8 +610,16 @@ function renderRazorpayPayments(payments){
         var raw = JSON.stringify(payment, null, 2);
         var source = payment.bank || payment.wallet || payment.vpa || '';
         var rowClass = payment.status === 'captured' ? 'row-ok' : (payment.status === 'failed' ? 'row-bad' : 'row-warn');
+        var paymentId = payment.id || '';
+        var orderId = payment.order_id || '';
+        var paymentLink = paymentId
+            ? '<button type="button" class="table-link" data-transfer-payment="'+esc(paymentId)+'" data-transfer-order="'+esc(orderId)+'">'+esc(paymentId)+'</button>'
+            : '—';
+        var orderLink = orderId
+            ? '<button type="button" class="table-link" data-transfer-order="'+esc(orderId)+'" data-transfer-payment="'+esc(paymentId)+'">'+esc(orderId)+'</button>'
+            : '—';
         html += '<tr class="'+rowClass+'">' +
-            '<td>'+esc(payment.id)+'</td><td>'+esc(payment.order_id)+'</td><td>'+esc(payment.status)+'</td>' +
+            '<td>'+paymentLink+'</td><td>'+orderLink+'</td><td>'+esc(payment.status)+'</td>' +
             '<td>'+esc(payment.amount === undefined ? '—' : money(parseFloat(payment.amount) / 100))+' '+esc(payment.currency)+'</td>' +
             '<td>'+esc(payment.method)+'</td><td>'+esc(formatRazorpayTime(payment.created_at))+'</td>' +
             '<td>'+esc(payment.captured ? 'yes' : 'no')+'</td>' +
@@ -606,6 +631,42 @@ function renderRazorpayPayments(payments){
     tableElement.innerHTML = html;
     filterTables();
 }
+function closeTransferModal(){
+    var modal = document.getElementById('transfer-modal');
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+}
+function showTransferDetails(button){
+    var orderId = button.getAttribute('data-transfer-order') || '';
+    var paymentId = button.getAttribute('data-transfer-payment') || '';
+    var modal = document.getElementById('transfer-modal');
+    var body = document.getElementById('transfer-modal-body');
+    var title = document.getElementById('transfer-modal-title');
+    title.textContent = 'Transfer details · ' + (orderId || paymentId);
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    body.innerHTML = '<div class="lookup-message">Loading payment and transfer details…</div>';
+    var requestBody = new URLSearchParams();
+    if (orderId) requestBody.set('order_id', orderId);
+    if (paymentId) requestBody.set('payment_id', paymentId);
+    requestJson(BASE + '/order_detail', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},
+        body: requestBody.toString()
+    }).then(function(data){
+        renderOrderDetails(data, 'transfer-modal-body');
+    }).catch(function(error){
+        body.innerHTML = '<div class="lookup-message">'+esc(error.message)+'</div>';
+        showToast('Could not load transfer details: ' + error.message, true);
+    });
+}
+document.getElementById('razorpay-payment-table').addEventListener('click', function(event){
+    var button = event.target.closest('button[data-transfer-order],button[data-transfer-payment]');
+    if (button) showTransferDetails(button);
+});
+document.addEventListener('keydown', function(event){
+    if (event.key === 'Escape') closeTransferModal();
+});
 function syncRazorpayPayments(event){
     event.preventDefault();
     var day = document.getElementById('razorpay-sync-day').value;

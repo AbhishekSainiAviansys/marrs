@@ -484,10 +484,29 @@ class Splitmonitor extends CI_Controller
         }
 
         $order_id = trim((string)$this->input->post('order_id'));
-        if (!preg_match('/^order_[A-Za-z0-9_-]{1,100}$/', $order_id)) {
+        $payment_id = trim((string)$this->input->post('payment_id'));
+        if ($order_id !== '' && !preg_match('/^order_[A-Za-z0-9_-]{1,100}$/', $order_id)) {
             return $this->output->set_status_header(400)
                 ->set_content_type('application/json')
                 ->set_output(json_encode(['success' => false, 'message' => 'Enter a valid Razorpay order ID.']));
+        }
+        if ($order_id === '' && !preg_match('/^pay_[A-Za-z0-9_-]{1,100}$/', $payment_id)) {
+            return $this->output->set_status_header(400)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => 'Provide a valid Razorpay order ID or payment ID.']));
+        }
+        if ($order_id === '' && $this->db->table_exists('razorpay_payments')) {
+            $payment = $this->db->select('order_id')
+                ->get_where('razorpay_payments', ['payment_id' => $payment_id])
+                ->row_array();
+            if ($payment && !empty($payment['order_id'])) {
+                $order_id = trim((string)$payment['order_id']);
+            }
+        }
+        if ($order_id === '') {
+            return $this->output->set_status_header(404)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => 'No local order ID is linked to this payment ID. Sync its Razorpay payment record first.']));
         }
 
         $webhook = $this->get_order_rows('webhook_calls', $order_id, [
